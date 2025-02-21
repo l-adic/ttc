@@ -37,6 +37,43 @@ pub struct Preferences<V> {
     prefs: HashMap<V, Vec<V>>,
 }
 
+#[cfg(test)]
+mod test_utils {
+    use super::*;
+    use proptest::prelude::*;
+
+    impl<V> Arbitrary for Preferences<V>
+    where
+        V: Clone + Eq + std::hash::Hash + Arbitrary,
+        V::Strategy: 'static,
+    {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
+            any::<Vec<V>>()
+                .prop_flat_map(|vertices| {
+                    let len = vertices.len();
+                    prop::collection::vec(prop::collection::vec(0..len, 0..len), len).prop_map(
+                        move |subsets| Preferences {
+                            prefs: vertices
+                                .iter()
+                                .zip(subsets)
+                                .map(|(v, indices)| {
+                                    let mut subset: Vec<V> =
+                                        indices.into_iter().map(|i| vertices[i].clone()).collect();
+                                    subset.dedup();
+                                    (v.clone(), subset)
+                                })
+                                .collect(),
+                        },
+                    )
+                })
+                .boxed()
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Cycle<V> {
     pub values: Vec<V>,
