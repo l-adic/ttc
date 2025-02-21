@@ -322,6 +322,7 @@ mod tests {
                 let intersection = v[0].intersection(&v[1]);
                 assert!(intersection.is_empty(), "Cycles {:?} and {:?} intersect", v[0], v[1]);
               });
+
         // Check that all participants are assigned
         let mut assigned: HashSet<u32> = HashSet::new();
         for cycle in cycles {
