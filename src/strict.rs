@@ -37,6 +37,12 @@ pub struct Preferences<V> {
     prefs: HashMap<V, Vec<V>>,
 }
 
+impl<V> Preferences<V> {
+    pub fn participants(&self) -> Vec<&V> {
+        self.prefs.keys().collect()
+    }
+}
+
 #[cfg(test)]
 mod test_utils {
     use super::*;
@@ -52,8 +58,9 @@ mod test_utils {
 
         fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
             any::<Vec<V>>()
-                .prop_flat_map(|vertices| {
+                .prop_flat_map(|mut vertices| {
                     let len = vertices.len();
+                    vertices.dedup();
                     prop::collection::vec(prop::collection::vec(0..len, 0..len), len).prop_map(
                         move |subsets| Preferences {
                             prefs: vertices
@@ -74,9 +81,9 @@ mod test_utils {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Cycle<V> {
-    pub values: Vec<V>,
+    values: Vec<V>,
 }
 
 impl<V: Eq + Clone + std::hash::Hash> PartialEq for Cycle<V> {
@@ -100,6 +107,21 @@ impl<V: Eq + Clone + std::hash::Hash> PartialEq for Cycle<V> {
         }
 
         false
+    }
+}
+
+impl<V: PartialEq> Cycle<V> {
+    #[allow(dead_code)]
+    fn intersection(&self, other: &Self) -> Vec<&V> {
+        self.values
+            .iter()
+            .filter(|v| other.values.contains(v))
+            .collect()
+    }
+
+    #[allow(dead_code)]
+    fn elems(&self) -> Vec<&V> {
+        self.values.iter().collect()
     }
 }
 
@@ -249,6 +271,9 @@ where
 mod tests {
 
     use super::*;
+    use itertools::Itertools;
+    use proptest::prelude::*;
+    use std::collections::HashSet;
 
     #[test]
     fn basic_test() {
@@ -276,5 +301,33 @@ mod tests {
             ],
             ps
         );
+    }
+
+    proptest! {
+    #![proptest_config(ProptestConfig::with_cases(20))]
+    #[test]
+    fn test_can_solve_random_graph(p in Preferences::<u32>::arbitrary())
+      { let participants: HashSet<u32> = p.participants().into_iter().cloned().collect();
+        let mut g = PreferenceGraph::new(p).unwrap();
+        let solution = g.solve_preferences();
+
+        // Check that the graph is solvable
+        prop_assert!(solution.is_ok(), "Unsolvable graph");
+        let cycles = solution.unwrap().res;
+
+        // Check that the cycles are disjoint
+        cycles.iter()
+              .combinations(2)
+              .for_each(|v| {
+                let intersection = v[0].intersection(&v[1]);
+                assert!(intersection.is_empty(), "Cycles {:?} and {:?} intersect", v[0], v[1]);
+              });
+        // Check that all participants are assigned
+        let mut assigned: HashSet<u32> = HashSet::new();
+        for cycle in cycles {
+            assigned.extend(cycle.elems());
+        }
+        prop_assert_eq!(participants, assigned, "Not all participants were assigned");
+      }
     }
 }
