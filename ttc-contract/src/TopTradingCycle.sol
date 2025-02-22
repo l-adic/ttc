@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 /**
  * @title TopTradingCycle
@@ -42,7 +42,7 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
      * @dev Constructor sets the NFT contract address
      * @param _nftContract Address of the ERC721 contract
      */
-    constructor(address _nftContract) {
+    constructor(address _nftContract) Ownable(msg.sender) {
         require(_nftContract != address(0), "Invalid NFT contract address");
         nftContract = IERC721(_nftContract);
     }
