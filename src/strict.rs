@@ -79,12 +79,9 @@ impl<V> Preferences<V> {
 
 impl<V: Eq + Hash> Preferences<V> {
     pub fn rank(&self, participant: V, value: V) -> Option<usize> {
-        self.prefs.get(&participant).map(|prefs| {
-            prefs
-                .iter()
-                .position(|v| v == &value)
-                .unwrap_or(usize::max_value())
-        })
+        self.prefs
+            .get(&participant)
+            .map(|prefs| prefs.iter().position(|v| v == &value).unwrap_or(usize::MAX))
     }
 }
 
@@ -104,7 +101,7 @@ where
     pub fn preferred_item(&self, v: V) -> V {
         self.prefs
             .get(&v)
-            .and_then(|vp| vp.first().map(Clone::clone))
+            .and_then(|vp| vp.first().cloned())
             .unwrap_or(v)
     }
 
@@ -142,10 +139,7 @@ where
         if v.is_empty() {
             return Err(TTCError::EmptyGraph);
         }
-        let e: Vec<(V, V)> = v
-            .iter()
-            .map(|x| (x.clone(), prefs.preferred_item(*x)))
-            .collect();
+        let e: Vec<(V, V)> = v.iter().map(|x| (*x, prefs.preferred_item(*x))).collect();
 
         let graph = Self::setup(&v, &e);
         Ok(Self { graph, prefs })
@@ -163,11 +157,9 @@ where
         for &(v1, v2) in e {
             let n1 = m.get(&v1);
             let n2 = m.get(&v2);
-            match (n1, n2) {
-                (Some(_n1), Some(_n2)) => {
-                    let _ = g.add_edge(*_n1, *_n2, ());
-                }
-                _ => (),
+
+            if let (Some(_n1), Some(_n2)) = (n1, n2) {
+                let _ = g.add_edge(*_n1, *_n2, ());
             }
         }
         g
@@ -180,13 +172,13 @@ where
         let cycle_end = depth_first_search(&self.graph, start, |event| match event {
             DfsEvent::TreeEdge(u, v) => {
                 predecessors[v.index()] = u;
-                return Control::Continue;
+                Control::Continue
             }
             DfsEvent::BackEdge(u, v) => {
                 predecessors[v.index()] = u;
-                return Control::Break(u);
+                Control::Break(u)
             }
-            _ => return Control::Continue,
+            _ => Control::Continue,
         })
         .break_value()
         .ok_or(TTCError::AlwaysCycles)?;
