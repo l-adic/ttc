@@ -1,0 +1,16 @@
+name: Lint
+
+on:
+  pull_request:
+
+jobs:
+  lint:
+    name: Run Lints
+    runs-on: ubuntu-latest    
+    steps:
+    - uses: actions/checkout@v4    
+    - uses: Swatinem/rust-cache@v2        
+    - name: Check formatting
+      run: cargo fmt --check
+    - name: Run clippy
+      run: cargo clippy -- -D warnings
