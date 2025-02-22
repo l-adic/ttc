@@ -10,77 +10,6 @@ use std::{
 };
 use thiserror::Error;
 
-#[derive(Debug, Error)]
-pub enum TTCError {
-    #[error("Graph is empty")]
-    EmptyGraph,
-    #[error("Graph contains an invalid edge: {}", _0)]
-    InvalidEdge(String),
-    #[error("Graph will always have a cycle")]
-    AlwaysCycles,
-}
-
-#[derive(Debug, Error)]
-pub enum PrefsError<V: Debug + Display> {
-    #[error("{} has preferences for options that don't exist", _0)]
-    InvalidChoice(V),
-}
-
-#[derive(Debug)]
-pub struct PreferenceGraph<V> {
-    graph: DiGraph<V, ()>,
-    prefs: Preferences<V>,
-}
-
-#[derive(Debug)]
-pub struct Preferences<V> {
-    prefs: HashMap<V, Vec<V>>,
-}
-
-impl<V> Preferences<V> {
-    pub fn participants(&self) -> Vec<&V> {
-        self.prefs.keys().collect()
-    }
-}
-
-#[cfg(test)]
-mod test_utils {
-    use super::*;
-    use proptest::prelude::*;
-
-    impl<V> Arbitrary for Preferences<V>
-    where
-        V: Clone + Eq + std::hash::Hash + Arbitrary,
-        V::Strategy: 'static,
-    {
-        type Parameters = ();
-        type Strategy = BoxedStrategy<Self>;
-
-        fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
-            any::<Vec<V>>()
-                .prop_flat_map(|mut vertices| {
-                    let len = vertices.len();
-                    vertices.dedup();
-                    prop::collection::vec(prop::collection::vec(0..len, 0..len), len).prop_map(
-                        move |subsets| Preferences {
-                            prefs: vertices
-                                .iter()
-                                .zip(subsets)
-                                .map(|(v, indices)| {
-                                    let mut subset: Vec<V> =
-                                        indices.into_iter().map(|i| vertices[i].clone()).collect();
-                                    subset.dedup();
-                                    (v.clone(), subset)
-                                })
-                                .collect(),
-                        },
-                    )
-                })
-                .boxed()
-        }
-    }
-}
-
 #[derive(Debug, Clone)]
 pub struct Cycle<V> {
     values: Vec<V>,
@@ -110,34 +39,58 @@ impl<V: Eq + Clone + std::hash::Hash> PartialEq for Cycle<V> {
     }
 }
 
-impl<V: PartialEq> Cycle<V> {
-    #[allow(dead_code)]
-    fn intersection(&self, other: &Self) -> Vec<&V> {
-        self.values
-            .iter()
-            .filter(|v| other.values.contains(v))
-            .collect()
-    }
+#[derive(Debug)]
+pub struct Allocation<V> {
+    pub allocation: HashMap<V, V>,
+}
 
-    #[allow(dead_code)]
-    fn elems(&self) -> Vec<&V> {
-        self.values.iter().collect()
+impl<V: Clone + Eq + Hash> From<Vec<Cycle<V>>> for Allocation<V> {
+    fn from(cycles: Vec<Cycle<V>>) -> Self {
+        let mut allocation = HashMap::new();
+        cycles.into_iter().for_each(|cycle| {
+            cycle
+                .values
+                .iter()
+                .zip(cycle.values.iter().cycle().skip(1))
+                .for_each(|(a, b)| {
+                    allocation.insert(a.clone(), b.clone());
+                });
+        });
+        Allocation { allocation }
     }
 }
 
-pub struct Solution<V> {
-    pub res: Vec<Cycle<V>>,
+#[derive(Debug, Error)]
+pub enum PrefsError<V: Display> {
+    #[error("{} has preferences for options that don't exist", _0)]
+    InvalidChoice(V),
 }
 
-impl<V: Debug> std::fmt::Display for Solution<V> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self.res)
+#[derive(Debug, Clone)]
+pub struct Preferences<V> {
+    prefs: HashMap<V, Vec<V>>,
+}
+
+impl<V> Preferences<V> {
+    pub fn participants(&self) -> Vec<&V> {
+        self.prefs.keys().collect()
+    }
+}
+
+impl<V: Eq + Hash> Preferences<V> {
+    pub fn rank(&self, participant: V, value: V) -> Option<usize> {
+        self.prefs.get(&participant).map(|prefs| {
+            prefs
+                .iter()
+                .position(|v| v == &value)
+                .unwrap_or(usize::max_value())
+        })
     }
 }
 
 impl<V> Preferences<V>
 where
-    V: Debug + Display + Eq + Hash + Clone,
+    V: Display + Eq + Hash + Clone,
 {
     pub fn new(prefs: HashMap<V, Vec<V>>) -> Result<Self, PrefsError<V>> {
         for (k, vs) in prefs.iter() {
@@ -165,9 +118,24 @@ where
     }
 }
 
+#[derive(Debug, Error)]
+pub enum TTCError {
+    #[error("Graph is empty")]
+    EmptyGraph,
+    #[error("Graph contains an invalid edge: {}", _0)]
+    InvalidEdge(String),
+    #[error("Graph will always have a cycle")]
+    AlwaysCycles,
+}
+
+pub struct PreferenceGraph<V> {
+    graph: DiGraph<V, ()>,
+    prefs: Preferences<V>,
+}
+
 impl<V> PreferenceGraph<V>
 where
-    V: PartialEq + Eq + Display + Hash + Copy + Debug,
+    V: Eq + Display + Hash + Copy,
 {
     pub fn new(prefs: Preferences<V>) -> Result<Self, TTCError> {
         let v: Vec<V> = prefs.prefs.keys().cloned().collect();
@@ -235,7 +203,7 @@ where
         Ok(Cycle { values: cycle })
     }
 
-    pub fn solve_preferences(&mut self) -> Result<Solution<V>, TTCError> {
+    pub fn solve_preferences(&mut self) -> Result<Vec<Cycle<V>>, TTCError> {
         let mut res = Vec::new();
         while self.graph.node_count() > 0 {
             let cycle = self.find_cycle()?;
@@ -263,7 +231,7 @@ where
             }
             res.push(cycle);
         }
-        Ok(Solution { res })
+        Ok(res)
     }
 }
 
@@ -288,7 +256,7 @@ mod tests {
         let prefs = Preferences::new(prefs.into_iter().collect()).unwrap();
 
         let mut g = PreferenceGraph::new(prefs).unwrap();
-        let ps = g.solve_preferences().unwrap().res;
+        let ps = g.solve_preferences().unwrap();
         assert_eq!(
             vec![
                 Cycle { values: vec!["S3"] },
@@ -303,32 +271,127 @@ mod tests {
         );
     }
 
+    impl<V: PartialEq> Cycle<V> {
+        fn intersection(&self, other: &Self) -> Vec<&V> {
+            self.values
+                .iter()
+                .filter(|v| other.values.contains(v))
+                .collect()
+        }
+
+        fn elems(&self) -> Vec<&V> {
+            self.values.iter().collect()
+        }
+    }
+
+    fn should_exchange<V: Debug + Eq + Hash + Copy>(
+        prefs: &Preferences<V>,
+        alloc: &Allocation<V>,
+        a: V,
+        b: V,
+    ) -> bool {
+        let a_pref = prefs
+            .rank(a, alloc.allocation[&a])
+            .expect(format!("Failed to find key {:?}", a).as_str());
+        let b_pref = prefs
+            .rank(b, alloc.allocation[&b])
+            .expect(format!("Failed to find key {:?}", b).as_str());
+        let a_better = a_pref < b_pref;
+        let b_better = b_pref < a_pref;
+        a_better && b_better
+    }
+
+    impl<V> Arbitrary for Preferences<V>
+    where
+        V: Clone + Eq + std::hash::Hash + Arbitrary,
+        V::Strategy: 'static,
+    {
+        type Parameters = ();
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
+            any::<HashSet<V>>()
+                .prop_filter("Must be at least 2 traders", |xs| xs.len() >= 2)
+                .prop_flat_map(|vertices| {
+                    let vertices: Vec<V> = vertices.into_iter().collect();
+                    let len = vertices.len();
+                    prop::collection::vec(prop::collection::vec(0..len, 0..len), len).prop_map(
+                        move |subsets| Preferences {
+                            prefs: vertices
+                                .iter()
+                                .zip(subsets)
+                                .map(|(v, indices)| {
+                                    let mut subset: Vec<V> =
+                                        indices.into_iter().map(|i| vertices[i].clone()).collect();
+                                    subset.dedup();
+                                    (v.clone(), subset)
+                                })
+                                .collect(),
+                        },
+                    )
+                })
+                .boxed()
+        }
+    }
+
     proptest! {
-    #![proptest_config(ProptestConfig::with_cases(20))]
     #[test]
     fn test_can_solve_random_graph(p in Preferences::<u32>::arbitrary())
-      { let participants: HashSet<u32> = p.participants().into_iter().cloned().collect();
-        let mut g = PreferenceGraph::new(p).unwrap();
+      { let mut g = PreferenceGraph::new(p.clone()).unwrap();
         let solution = g.solve_preferences();
+        let participants: HashSet<u32> = p.participants().into_iter().cloned().collect();
 
         // Check that the graph is solvable
         prop_assert!(solution.is_ok(), "Unsolvable graph");
-        let cycles = solution.unwrap().res;
+
+        let cycles = solution.unwrap();
 
         // Check that the cycles are disjoint
         cycles.iter()
               .combinations(2)
-              .for_each(|v| {
+              .try_for_each(|v| {
                 let intersection = v[0].intersection(&v[1]);
-                assert!(intersection.is_empty(), "Cycles {:?} and {:?} intersect", v[0], v[1]);
-              });
+                prop_assert!(intersection.is_empty(), "Cycles {:?} and {:?} intersect", v[0], v[1]);
+                Ok(())
+              })?;
 
         // Check that all participants are assigned
-        let mut assigned: HashSet<u32> = HashSet::new();
-        for cycle in cycles {
-            assigned.extend(cycle.elems());
+        {
+            let mut assigned: HashSet<u32> = HashSet::new();
+            for cycle in cycles.clone() {
+                assigned.extend(cycle.elems());
+            }
+            prop_assert_eq!(participants.clone(), assigned, "Not all participants were assigned");
         }
-        prop_assert_eq!(participants, assigned, "Not all participants were assigned");
+
+        let alloc = Allocation::from(cycles);
+
+        //Check that the allocation accounts for all of the preferences
+        {
+            let participants_allocated : HashSet<u32> = alloc.allocation.keys().cloned().collect();
+            prop_assert_eq!(
+                  participants
+                , participants_allocated
+                , "Allocations don't account for all of the preferences!"
+            );
+        }
+
+        // check that the allocation respects the preferences
+        alloc.allocation.iter().try_for_each(|(k,v)| {
+            if k != v {
+              let k_prefs = p.prefs.get(k).expect(format!("Failed to find key {:?} in preferences", k).as_str());
+              prop_assert!(k_prefs.contains(v), "Preferences for {:?} don't contain {:?}", k, v);
+            }
+            Ok(())
+        })?;
+
+        // Check that the allocation is stable
+        p.prefs.keys().combinations(2).try_for_each(|x| {
+            let exchange = should_exchange(&p, &alloc, x[0].clone(), x[1].clone());
+            prop_assert!(!exchange, "No exchange should increase satisfaction with allocation!");
+            Ok(())
+
+        })?;
       }
     }
 }
