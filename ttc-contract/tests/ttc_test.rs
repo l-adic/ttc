@@ -10,7 +10,7 @@ use std::str::FromStr;
 use std::{sync::Arc, usize};
 use ttc_contract::{
     nft::{self, TestNFT},
-    ttc::TopTradingCycle,
+    ttc::{TopTradingCycle, TopTradingCycleCalls, top_trading_cycle::TokenReallocation},
 };
 
 // I only know these because they are printed when the node starts up, they each come with a balance
@@ -30,7 +30,7 @@ static ANVIL_PRIVATE_KEYS: [&str; 10] = [
 
 static NODE_URL: &str = "http://localhost:8545";
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 struct Actor {
     wallet: LocalWallet,
     token_id: U256,
@@ -87,6 +87,46 @@ fn test_preferences(actors: [Actor; 6]) -> [Vec<U256>; 6] {
             actors[4].token_id,
             actors[5].token_id,
         ],
+    ]
+}
+
+fn test_reallocations(actors: [Actor; 6]) -> Vec<(Actor, TokenReallocation)> {
+    vec![
+        (
+            actors[0].clone(),
+            TokenReallocation {
+                old_token_id: actors[0].token_id,
+                new_token_id: actors[1].token_id,
+            },
+        ),
+        (
+            actors[1].clone(),
+            TokenReallocation {
+                old_token_id: actors[1].token_id,
+                new_token_id: actors[4].token_id,
+            },
+        ),
+        (
+            actors[4].clone(),
+            TokenReallocation {
+                old_token_id: actors[4].token_id,
+                new_token_id: actors[0].token_id,
+            },
+        ),
+        (
+            actors[3].clone(),
+            TokenReallocation {
+                old_token_id: actors[3].token_id,
+                new_token_id: actors[5].token_id,
+            },
+        ),
+        (
+            actors[5].clone(),
+            TokenReallocation {
+                old_token_id: actors[5].token_id,
+                new_token_id: actors[3].token_id,
+            },
+        ),
     ]
 }
 
@@ -228,6 +268,73 @@ impl TestSetup {
         futures::future::try_join_all(futures).await?;
         Ok(())
     }
+
+    async fn reallocate(&self) -> Result<()> {
+        let client = Arc::new(SignerMiddleware::new(
+            self.provider.clone(),
+            self.owner.clone(),
+        ));
+        let ttc = TopTradingCycle::new(self.ttc, client);
+        let reallocations = test_reallocations(self.actors.clone());
+        let stable: Vec<Actor> = {
+            let moved: Vec<&Actor> = reallocations.iter().map(|(x, _)| x).collect();
+            self.actors
+                .iter()
+                .cloned()
+                .filter(|a| !moved.iter().any(|y| *y == a))
+                .collect::<Vec<_>>()
+        };
+
+        // Send the reallocate transaction
+        let rx = ttc
+            .reallocate_tokens(reallocations.iter().cloned().map(|(_, y)| y).collect())
+            .gas(1_000_000u64)
+            .send()
+            .await?
+            .await?;
+
+        println!("Reallocate tx: {:?}", rx);
+
+        // Use futures to handle the stable token checks concurrently
+        let stable_verification_futures = stable
+            .into_iter()
+            .map(|a| {
+                let ttc = ttc.clone();
+                async move {
+                    let owner = ttc.get_current_owner(a.token_id).call().await?;
+                    assert_eq!(
+                        owner,
+                        a.wallet.address(),
+                        "Stable owner didn't maintain their token!"
+                    );
+                    Ok::<(), eyre::Report>(())
+                }
+            })
+            .collect::<Vec<_>>();
+
+        // Wait for all verifications to complete
+        futures::future::try_join_all(stable_verification_futures).await?;
+
+        let reallocated_verification_futures = reallocations
+            .into_iter()
+            .map(|(a, TokenReallocation { new_token_id, .. })| {
+                let ttc = ttc.clone();
+                async move {
+                    let owner = ttc.get_current_owner(new_token_id).call().await?;
+                    assert_eq!(
+                        owner,
+                        a.wallet.address(),
+                        "Traders didn't get their new token!"
+                    );
+                    Ok::<(), eyre::Report>(())
+                }
+            })
+            .collect::<Vec<_>>();
+
+        futures::future::try_join_all(reallocated_verification_futures).await?;
+
+        Ok(())
+    }
 }
 
 #[tokio::test]
@@ -235,5 +342,6 @@ async fn test_deployment() -> Result<()> {
     let setup = TestSetup::new().await?;
     setup.deposit_tokens().await?;
     setup.set_preferences().await?;
+    setup.reallocate().await?;
     Ok(())
 }

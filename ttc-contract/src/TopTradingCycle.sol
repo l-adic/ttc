@@ -211,8 +211,10 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
         
         for (uint256 i = 0; i < reallocations.length; i++) {
             TokenReallocation calldata realloc = reallocations[i];
-            address oldOwner = tokenOwners[realloc.oldTokenId];
-            _transferNFTOwnership(tokenOwners[realloc.newTokenId], oldOwner, realloc.newTokenId);
+            address oldTokenOwner = tokenOwners[realloc.oldTokenId];
+            address newTokenOwner = tokenOwners[realloc.newTokenId];
+            _transferNFTOwnership(newTokenOwner, oldTokenOwner, realloc.newTokenId);
+            
         }
     }
 }
