@@ -8,7 +8,10 @@ use eyre::Result;
 use rand::seq::index::sample;
 use std::str::FromStr;
 use std::{sync::Arc, usize};
-use ttc_contract::{nft::TestNFT, ttc::TopTradingCycle};
+use ttc_contract::{
+    nft::{self, TestNFT},
+    ttc::TopTradingCycle,
+};
 
 // I only know these because they are printed when the node starts up, they each come with a balance
 // of 10000 ETH.
@@ -27,9 +30,10 @@ static ANVIL_PRIVATE_KEYS: [&str; 10] = [
 
 static NODE_URL: &str = "http://localhost:8545";
 
+#[derive(Debug, Clone)]
 struct Actor {
     wallet: LocalWallet,
-    tokenId: U256,
+    token_id: U256,
 }
 
 impl Actor {
@@ -55,15 +59,59 @@ impl Actor {
 
         Ok(Self {
             wallet,
-            tokenId: token_id,
+            token_id: token_id,
         })
     }
 }
 
+fn test_preferences(actors: [Actor; 6]) -> [(Actor, Vec<U256>); 6] {
+    [
+        (
+            actors[0].clone(),
+            vec![
+                actors[2].token_id,
+                actors[1].token_id,
+                actors[3].token_id,
+                actors[0].token_id,
+            ],
+        ),
+        (
+            actors[1].clone(),
+            vec![actors[2].token_id, actors[4].token_id, actors[5].token_id],
+        ),
+        (
+            actors[2].clone(),
+            vec![actors[2].token_id, actors[0].token_id],
+        ),
+        (
+            actors[3].clone(),
+            vec![
+                actors[1].token_id,
+                actors[4].token_id,
+                actors[5].token_id,
+                actors[3].token_id,
+            ],
+        ),
+        (
+            actors[4].clone(),
+            vec![actors[0].token_id, actors[2].token_id],
+        ),
+        (
+            actors[5].clone(),
+            vec![
+                actors[1].token_id,
+                actors[3].token_id,
+                actors[4].token_id,
+                actors[5].token_id,
+            ],
+        ),
+    ]
+}
+
 struct TestSetup {
     provider: Arc<Provider<Http>>,
-    nft: TestNFT<SignerMiddleware<Arc<Provider<Http>>, LocalWallet>>,
-    ttc: TopTradingCycle<SignerMiddleware<Arc<Provider<Http>>, LocalWallet>>,
+    nft: Address,
+    ttc: Address,
     owner: LocalWallet,
     actors: [Actor; 6],
 }
@@ -134,17 +182,46 @@ impl TestSetup {
 
         Ok(Self {
             provider,
-            nft,
-            ttc,
+            nft: nft.address(),
+            ttc: ttc.address(),
             owner,
             actors,
         })
+    }
+
+    async fn deposit_tokens(&self) -> Result<()> {
+        let futures = self
+            .actors
+            .iter()
+            .map(|actor| {
+                let client = Arc::new(SignerMiddleware::new(
+                    self.provider.clone(),
+                    actor.wallet.clone(),
+                ));
+                let nft = TestNFT::new(self.nft, client.clone());
+                let ttc = TopTradingCycle::new(self.ttc, client);
+                async move {
+                    nft.approve(self.ttc, actor.token_id).send().await?.await?;
+                    ttc.deposit_nft(actor.token_id).send().await?.await?;
+                    let token_owner = ttc.token_owners(actor.token_id).call().await?;
+                    assert_eq!(
+                        token_owner,
+                        actor.wallet.address(),
+                        "Token not deposited correctly in contract!"
+                    );
+                    Ok::<(), eyre::Report>(())
+                }
+            })
+            .collect::<Vec<_>>();
+
+        futures::future::try_join_all(futures).await?;
+        Ok(())
     }
 }
 
 #[tokio::test]
 async fn test_deployment() -> Result<()> {
     let setup = TestSetup::new().await?;
-    assert_eq!(setup.ttc.nft_contract().call().await?, setup.nft.address());
+    setup.deposit_tokens().await?;
     Ok(())
 }
