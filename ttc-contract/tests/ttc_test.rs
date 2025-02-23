@@ -64,47 +64,29 @@ impl Actor {
     }
 }
 
-fn test_preferences(actors: [Actor; 6]) -> [(Actor, Vec<U256>); 6] {
+fn test_preferences(actors: [Actor; 6]) -> [Vec<U256>; 6] {
     [
-        (
-            actors[0].clone(),
-            vec![
-                actors[2].token_id,
-                actors[1].token_id,
-                actors[3].token_id,
-                actors[0].token_id,
-            ],
-        ),
-        (
-            actors[1].clone(),
-            vec![actors[2].token_id, actors[4].token_id, actors[5].token_id],
-        ),
-        (
-            actors[2].clone(),
-            vec![actors[2].token_id, actors[0].token_id],
-        ),
-        (
-            actors[3].clone(),
-            vec![
-                actors[1].token_id,
-                actors[4].token_id,
-                actors[5].token_id,
-                actors[3].token_id,
-            ],
-        ),
-        (
-            actors[4].clone(),
-            vec![actors[0].token_id, actors[2].token_id],
-        ),
-        (
-            actors[5].clone(),
-            vec![
-                actors[1].token_id,
-                actors[3].token_id,
-                actors[4].token_id,
-                actors[5].token_id,
-            ],
-        ),
+        vec![
+            actors[2].token_id,
+            actors[1].token_id,
+            actors[3].token_id,
+            actors[0].token_id,
+        ],
+        vec![actors[2].token_id, actors[4].token_id, actors[5].token_id],
+        vec![actors[2].token_id, actors[0].token_id],
+        vec![
+            actors[1].token_id,
+            actors[4].token_id,
+            actors[5].token_id,
+            actors[3].token_id,
+        ],
+        vec![actors[0].token_id, actors[2].token_id],
+        vec![
+            actors[1].token_id,
+            actors[3].token_id,
+            actors[4].token_id,
+            actors[5].token_id,
+        ],
     ]
 }
 
@@ -217,11 +199,41 @@ impl TestSetup {
         futures::future::try_join_all(futures).await?;
         Ok(())
     }
+
+    async fn set_preferences(&self) -> Result<()> {
+        let preferences = test_preferences(self.actors.clone());
+        let futures = self
+            .actors
+            .iter()
+            .zip(preferences)
+            .map(|(actor, prefs)| {
+                let client = Arc::new(SignerMiddleware::new(
+                    self.provider.clone(),
+                    actor.wallet.clone(),
+                ));
+                let ttc = TopTradingCycle::new(self.ttc, client);
+                async move {
+                    ttc.set_preferences(actor.token_id, prefs.clone())
+                        .gas(1_000_000u64)
+                        .send()
+                        .await?
+                        .await?;
+                    let ps = ttc.get_preferences(actor.token_id).call().await?;
+                    assert_eq!(ps, prefs, "Preferences not set correctly in contract!");
+                    Ok::<(), eyre::Report>(())
+                }
+            })
+            .collect::<Vec<_>>();
+
+        futures::future::try_join_all(futures).await?;
+        Ok(())
+    }
 }
 
 #[tokio::test]
 async fn test_deployment() -> Result<()> {
     let setup = TestSetup::new().await?;
     setup.deposit_tokens().await?;
+    setup.set_preferences().await?;
     Ok(())
 }

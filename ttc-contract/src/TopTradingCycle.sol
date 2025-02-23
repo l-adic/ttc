@@ -149,7 +149,6 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
         // Validate all preference tokens exist in the contract
         for (uint256 i = 0; i < preferences.length; i++) {
             require(tokenOwners[preferences[i]] != address(0), "Invalid preference token");
-            require(preferences[i] != tokenId, "Cannot prefer own token");
         }
         
         // Clear existing preferences and set new ones
