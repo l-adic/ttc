@@ -31,6 +31,10 @@ static ANVIL_PRIVATE_KEYS: [&str; 10] = [
 
 static NODE_URL: &str = "http://localhost:8545";
 
+static BIG_GAS: u64 = 1_000_000u64;
+
+static ANVIL_CHAIN_ID: u64 = 31337;
+
 #[derive(Debug, Clone, PartialEq)]
 struct Actor {
     wallet: LocalWallet,
@@ -50,7 +54,7 @@ impl Actor {
         let nft = TestNFT::new(nft_address, owner_client);
 
         nft.safe_mint(wallet.address(), token_id)
-            .gas(1_000_000u64)
+            .gas(BIG_GAS)
             .nonce(nonce)
             .send()
             .await?
@@ -171,7 +175,7 @@ impl TestSetup {
             Arc::new(p)
         };
 
-        let owner = LocalWallet::from_str(ANVIL_PRIVATE_KEYS[0])?.with_chain_id(31337u64);
+        let owner = LocalWallet::from_str(ANVIL_PRIVATE_KEYS[0])?.with_chain_id(ANVIL_CHAIN_ID);
 
         let client = Arc::new(SignerMiddleware::new(provider.clone(), owner.clone()));
 
@@ -186,7 +190,7 @@ impl TestSetup {
                 .map(|key| {
                     LocalWallet::from_str(key)
                         .expect("Invalid private key")
-                        .with_chain_id(31337u64)
+                        .with_chain_id(ANVIL_CHAIN_ID)
                 })
                 .collect();
             create_actors(provider.clone(), nft.address(), owner.clone(), accounts).await?
@@ -244,7 +248,7 @@ impl TestSetup {
                 let ttc = TopTradingCycle::new(self.ttc, client);
                 async move {
                     ttc.set_preferences(actor.token_id, prefs.clone())
-                        .gas(1_000_000u64)
+                        .gas(BIG_GAS)
                         .send()
                         .await?
                         .await?;
@@ -279,7 +283,7 @@ impl TestSetup {
         };
 
         ttc.reallocate_tokens(reallocations.clone())
-            .gas(1_000_000u64)
+            .gas(BIG_GAS)
             .send()
             .await?
             .await?;
