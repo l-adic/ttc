@@ -65,8 +65,8 @@ impl Actor {
     }
 }
 
-fn example_preferences(actors: [Actor; 6]) -> [Vec<U256>; 6] {
-    [
+fn example_preferences(actors: Vec<Actor>) -> Vec<Vec<U256>> {
+    vec![
         vec![
             actors[2].token_id,
             actors[1].token_id,
@@ -91,7 +91,7 @@ fn example_preferences(actors: [Actor; 6]) -> [Vec<U256>; 6] {
     ]
 }
 
-fn example_allocations(actors: [Actor; 6]) -> Vec<TokenReallocation> {
+fn example_allocations(actors: Vec<Actor>) -> Vec<TokenReallocation> {
     let prefs: strict::Preferences<U256> = {
         let xs = actors
             .iter()
@@ -124,15 +124,15 @@ struct TestSetup {
     nft: Address,
     ttc: Address,
     owner: LocalWallet,
-    actors: [Actor; 6],
+    actors: Vec<Actor>,
 }
 
 async fn create_actors(
     provider: Arc<Provider<Http>>,
     nft_address: Address,
     owner: LocalWallet,
-    actors: [LocalWallet; 6],
-) -> Result<[Actor; 6]> {
+    actors: Vec<LocalWallet>,
+) -> Result<Vec<Actor>> {
     let start_nonce = provider
         .get_transaction_count(owner.address(), None)
         .await?;
@@ -180,14 +180,15 @@ impl TestSetup {
             .send()
             .await?;
 
-        let actors: [Actor; 6] = {
-            let accounts = TryInto::<[&str; 6]>::try_into(&ANVIL_PRIVATE_KEYS[1..7])
-                .expect("Not enough private keys")
+        let actors: Vec<Actor> = {
+            let accounts = ANVIL_PRIVATE_KEYS[1..7]
+                .into_iter()
                 .map(|key| {
                     LocalWallet::from_str(key)
                         .expect("Invalid private key")
                         .with_chain_id(31337u64)
-                });
+                })
+                .collect();
             create_actors(provider.clone(), nft.address(), owner.clone(), accounts).await?
         };
 
