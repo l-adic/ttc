@@ -188,19 +188,19 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
 
     // Struct to represent a token reallocation pair
     struct TokenReallocation {
-        uint256 oldTokenId;
-        uint256 newTokenId;
+        uint256 tokenId;
+        address newOwner;
     }
 
     /**
      * @dev STUB FUNCTION - Atomic reallocation of token ownership
      * This function will implement the core top trading cycle algorithm
      * by reallocating tokens according to the computed cycles.
-     * For each (old, new) pair, the owner of old becomes the owner of new.
+     * For each (tokenId, newOwner) pair, newOwner becomes the owner of tokenId.
      * 
      * Requirements:
      * - All tokens must exist in the contract
-     * - Each token can only appear once in old and once in new
+     * - Each token can only appear once
      * - The reallocation must form valid trading cycles
      * 
      * @param reallocations Array of TokenReallocation structs defining the (old, new) token pairs
@@ -211,10 +211,8 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
         
         for (uint256 i = 0; i < reallocations.length; i++) {
             TokenReallocation calldata realloc = reallocations[i];
-            address oldTokenOwner = tokenOwners[realloc.oldTokenId];
-            address newTokenOwner = tokenOwners[realloc.newTokenId];
-            _transferNFTOwnership(newTokenOwner, oldTokenOwner, realloc.newTokenId);
-            
+            address currentOwner = tokenOwners[realloc.tokenId];
+            _transferNFTOwnership(currentOwner, realloc.newOwner, realloc.tokenId);
         }
     }
 }

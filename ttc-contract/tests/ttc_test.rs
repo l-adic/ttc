@@ -6,11 +6,12 @@ use ethers::{
 };
 use eyre::Result;
 use rand::seq::index::sample;
-use std::str::FromStr;
+use std::{collections::HashMap, str::FromStr};
 use std::{sync::Arc, usize};
+use ttc::strict;
 use ttc_contract::{
-    nft::{self, TestNFT},
-    ttc::{TopTradingCycle, TopTradingCycleCalls, top_trading_cycle::TokenReallocation},
+    nft::TestNFT,
+    ttc::{TopTradingCycle, top_trading_cycle::TokenReallocation},
 };
 
 // I only know these because they are printed when the node starts up, they each come with a balance
@@ -64,7 +65,7 @@ impl Actor {
     }
 }
 
-fn test_preferences(actors: [Actor; 6]) -> [Vec<U256>; 6] {
+fn example_preferences(actors: [Actor; 6]) -> [Vec<U256>; 6] {
     [
         vec![
             actors[2].token_id,
@@ -90,44 +91,32 @@ fn test_preferences(actors: [Actor; 6]) -> [Vec<U256>; 6] {
     ]
 }
 
-fn test_reallocations(actors: [Actor; 6]) -> Vec<(Actor, TokenReallocation)> {
-    vec![
-        (
-            actors[0].clone(),
+fn example_allocations(actors: [Actor; 6]) -> Vec<TokenReallocation> {
+    let prefs: strict::Preferences<U256> = {
+        let xs = actors
+            .iter()
+            .map(|a| a.token_id)
+            .zip(example_preferences(actors.clone()))
+            .collect();
+        strict::Preferences::new(xs).unwrap()
+    };
+    let mut g = strict::PreferenceGraph::new(prefs).unwrap();
+    let alloc = strict::Allocation::from(g.solve_preferences().unwrap());
+    let token_owners: HashMap<U256, Address> = actors
+        .into_iter()
+        .map(|a| (a.token_id, a.wallet.address()))
+        .collect();
+    alloc
+        .allocation
+        .into_iter()
+        .map(|(token_id, new_owner)| {
+            let new_owner = token_owners.get(&new_owner).unwrap().clone();
             TokenReallocation {
-                old_token_id: actors[0].token_id,
-                new_token_id: actors[1].token_id,
-            },
-        ),
-        (
-            actors[1].clone(),
-            TokenReallocation {
-                old_token_id: actors[1].token_id,
-                new_token_id: actors[4].token_id,
-            },
-        ),
-        (
-            actors[4].clone(),
-            TokenReallocation {
-                old_token_id: actors[4].token_id,
-                new_token_id: actors[0].token_id,
-            },
-        ),
-        (
-            actors[3].clone(),
-            TokenReallocation {
-                old_token_id: actors[3].token_id,
-                new_token_id: actors[5].token_id,
-            },
-        ),
-        (
-            actors[5].clone(),
-            TokenReallocation {
-                old_token_id: actors[5].token_id,
-                new_token_id: actors[3].token_id,
-            },
-        ),
-    ]
+                token_id,
+                new_owner,
+            }
+        })
+        .collect()
 }
 
 struct TestSetup {
@@ -241,7 +230,7 @@ impl TestSetup {
     }
 
     async fn set_preferences(&self) -> Result<()> {
-        let preferences = test_preferences(self.actors.clone());
+        let preferences = example_preferences(self.actors.clone());
         let futures = self
             .actors
             .iter()
@@ -275,64 +264,93 @@ impl TestSetup {
             self.owner.clone(),
         ));
         let ttc = TopTradingCycle::new(self.ttc, client);
-        let reallocations = test_reallocations(self.actors.clone());
+        let reallocations: Vec<TokenReallocation> = example_allocations(self.actors.clone());
         let stable: Vec<Actor> = {
-            let moved: Vec<&Actor> = reallocations.iter().map(|(x, _)| x).collect();
             self.actors
                 .iter()
                 .cloned()
-                .filter(|a| !moved.iter().any(|y| *y == a))
+                .filter(|a| {
+                    !reallocations
+                        .iter()
+                        .any(|y| (*y).new_owner == a.wallet.address())
+                })
                 .collect::<Vec<_>>()
         };
 
-        // Send the reallocate transaction
-        let rx = ttc
-            .reallocate_tokens(reallocations.iter().cloned().map(|(_, y)| y).collect())
+        ttc.reallocate_tokens(reallocations.clone())
             .gas(1_000_000u64)
             .send()
             .await?
             .await?;
+        {
+            let stable_verification_futures = stable
+                .into_iter()
+                .map(|a| {
+                    let ttc = ttc.clone();
+                    async move {
+                        let owner = ttc.get_current_owner(a.token_id).call().await?;
+                        assert_eq!(
+                            owner,
+                            a.wallet.address(),
+                            "Stable owner didn't maintain their token!"
+                        );
+                        Ok::<(), eyre::Report>(())
+                    }
+                })
+                .collect::<Vec<_>>();
 
-        println!("Reallocate tx: {:?}", rx);
+            futures::future::try_join_all(stable_verification_futures).await?;
+        }
 
-        // Use futures to handle the stable token checks concurrently
-        let stable_verification_futures = stable
+        {
+            let reallocated_verification_futures = reallocations
+                .into_iter()
+                .map(
+                    |TokenReallocation {
+                         token_id,
+                         new_owner,
+                     }| {
+                        let ttc = ttc.clone();
+                        async move {
+                            let owner = ttc.get_current_owner(token_id).call().await?;
+                            assert_eq!(owner, new_owner, "Traders didn't get their new token!");
+                            Ok::<(), eyre::Report>(())
+                        }
+                    },
+                )
+                .collect::<Vec<_>>();
+
+            futures::future::try_join_all(reallocated_verification_futures).await?;
+        }
+        Ok(())
+    }
+
+    async fn withraw(&self) -> Result<()> {
+        let token_owners: HashMap<Address, LocalWallet> = self
+            .actors
+            .iter()
+            .map(|a| (a.wallet.address(), a.wallet.clone()))
+            .collect();
+        let futures = example_allocations(self.actors.clone())
             .into_iter()
-            .map(|a| {
-                let ttc = ttc.clone();
-                async move {
-                    let owner = ttc.get_current_owner(a.token_id).call().await?;
-                    assert_eq!(
-                        owner,
-                        a.wallet.address(),
-                        "Stable owner didn't maintain their token!"
-                    );
-                    Ok::<(), eyre::Report>(())
-                }
-            })
+            .map(
+                |TokenReallocation {
+                     new_owner,
+                     token_id,
+                 }| {
+                    let wallet = token_owners.get(&new_owner).unwrap();
+                    let client =
+                        Arc::new(SignerMiddleware::new(self.provider.clone(), wallet.clone()));
+                    let ttc = TopTradingCycle::new(self.ttc, client);
+                    async move {
+                        ttc.withdraw_nft(token_id).send().await?.await?;
+                        Ok::<(), eyre::Report>(())
+                    }
+                },
+            )
             .collect::<Vec<_>>();
 
-        // Wait for all verifications to complete
-        futures::future::try_join_all(stable_verification_futures).await?;
-
-        let reallocated_verification_futures = reallocations
-            .into_iter()
-            .map(|(a, TokenReallocation { new_token_id, .. })| {
-                let ttc = ttc.clone();
-                async move {
-                    let owner = ttc.get_current_owner(new_token_id).call().await?;
-                    assert_eq!(
-                        owner,
-                        a.wallet.address(),
-                        "Traders didn't get their new token!"
-                    );
-                    Ok::<(), eyre::Report>(())
-                }
-            })
-            .collect::<Vec<_>>();
-
-        futures::future::try_join_all(reallocated_verification_futures).await?;
-
+        futures::future::try_join_all(futures).await?;
         Ok(())
     }
 }
@@ -343,5 +361,6 @@ async fn test_deployment() -> Result<()> {
     setup.deposit_tokens().await?;
     setup.set_preferences().await?;
     setup.reallocate().await?;
+    setup.withraw().await?;
     Ok(())
 }
