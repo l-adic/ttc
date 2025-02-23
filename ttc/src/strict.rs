@@ -298,12 +298,13 @@ mod tests {
         V: Clone + Eq + std::hash::Hash + Arbitrary,
         V::Strategy: 'static,
     {
-        type Parameters = ();
+        type Parameters = Option<std::ops::RangeInclusive<usize>>;
         type Strategy = BoxedStrategy<Self>;
 
-        fn arbitrary_with(_: Self::Parameters) -> Self::Strategy {
-            any::<HashSet<V>>()
-                .prop_filter("Must be at least 2 traders", |xs| xs.len() >= 2)
+        fn arbitrary_with(params: Self::Parameters) -> Self::Strategy {
+            let size_range = params.unwrap_or(2..=32);
+
+            prop::collection::hash_set(any::<V>(), size_range)
                 .prop_flat_map(|vertices| {
                     let vertices: Vec<V> = vertices.into_iter().collect();
                     let len = vertices.len();
