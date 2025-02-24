@@ -1,0 +1,43 @@
+name: Node Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  node_tests:
+    name: Run Node Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+
+    # Install Foundry
+    - name: Install Foundry
+      uses: foundry-rs/foundry-toolchain@v1
+      with:
+        version: nightly
+
+    # Start Anvil in the background
+    - name: Start Anvil Node
+      run: anvil &
+      
+    # Install Rust
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    # Run the tests
+    - name: Run node tests
+      run: |
+        # Wait for anvil to start
+        sleep 5
+        cargo test --release -p ttc-contract --features "node_test" test_ttc_flow -- --nocapture
+
+    # Cleanup
+    - name: Cleanup
+      if: always()
+      run: |
+        # Kill anvil process
+        pkill anvil || true

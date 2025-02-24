@@ -34,6 +34,9 @@ static BIG_GAS: u64 = 1_000_000u64;
 
 static ANVIL_CHAIN_ID: u64 = 31337;
 
+// We want to control how the actors (i.e. contract participants) are created.
+// This module forces that only actors with ETH and an NFT are participating,
+// which prevents failures for dumb reasons.
 mod actor {
     use super::*;
 
@@ -101,6 +104,8 @@ mod actor {
 
 use actor::{Actor, ActorData};
 
+// This function calls the solver and produces the data we need to
+// submit to the contract
 fn reallocate(actors: Vec<Actor>) -> Vec<TokenReallocation> {
     let prefs: strict::Preferences<U256> = {
         let xs = actors
@@ -167,6 +172,7 @@ async fn create_actors(
 }
 
 impl TestSetup {
+    // Deploy the NFT and TTC contracts and construct the actors.
     async fn new(prefs: strict::Preferences<U256>) -> Result<Self> {
         let provider = {
             let p = Provider::<Http>::try_from(NODE_URL)?;
@@ -213,6 +219,7 @@ impl TestSetup {
         })
     }
 
+    // All of the actors deposit their NFTs into the TTC contract
     async fn deposit_tokens(&self) -> Result<()> {
         let futures = self
             .actors
@@ -242,6 +249,7 @@ impl TestSetup {
         Ok(())
     }
 
+    // All of the actors set their preferences in the TTC contract
     async fn set_preferences(&self) -> Result<()> {
         let futures = self
             .actors
@@ -271,6 +279,7 @@ impl TestSetup {
         Ok(())
     }
 
+    // Call the solver and submit the reallocation data to the contract
     async fn reallocate(&self) -> Result<Vec<TokenReallocation>> {
         let client = Arc::new(SignerMiddleware::new(
             self.provider.clone(),
@@ -335,6 +344,7 @@ impl TestSetup {
         Ok(reallocations)
     }
 
+    // All of the actors withdraw their tokens, assert that they are getting the right ones!
     async fn withraw(&self, reallocations: Vec<TokenReallocation>) -> Result<()> {
         let token_owners: HashMap<Address, LocalWallet> = self
             .actors
@@ -386,14 +396,15 @@ mod tests {
         Ok(())
     }
 
+    #[cfg(feature = "node_test")]
     #[tokio::test]
-    async fn test_deployment() -> Result<()> {
-        let mut runner = TestRunner::default();
-        let strategy = (Preferences::<u64>::arbitrary_with(Some(9..=9)))
-            .prop_map(|prefs| prefs.map(U256::from));
-
-        // Generate a single random value
-        let test_case = strategy.new_tree(&mut runner).unwrap().current();
+    async fn test_ttc_flow() -> Result<()> {
+        let test_case = {
+            let mut runner = TestRunner::default();
+            let strategy = (Preferences::<u64>::arbitrary_with(Some(9..=9)))
+                .prop_map(|prefs| prefs.map(U256::from));
+            strategy.new_tree(&mut runner).unwrap().current()
+        };
         run_test_case(test_case).await?;
         Ok(())
     }
