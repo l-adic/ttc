@@ -265,15 +265,24 @@ pub mod test_utils {
                 .prop_flat_map(|vertices| {
                     let vertices: Vec<V> = vertices.into_iter().collect();
                     let len = vertices.len();
-                    prop::collection::vec(prop::collection::vec(0..len, 0..len), len).prop_map(
+                    let m = (3 * len) / 2;
+                    // we include more indices in order to increase the likelihood of trades
+                    prop::collection::vec(prop::collection::vec(0..len, 0..=m), len).prop_map(
                         move |subsets| Preferences {
                             prefs: vertices
                                 .iter()
                                 .zip(subsets)
-                                .map(|(v, indices)| {
-                                    let mut subset: Vec<V> =
-                                        indices.into_iter().map(|i| vertices[i].clone()).collect();
-                                    subset.dedup();
+                                .map(|(v, mut indices)| {
+                                    let mut subset: Vec<V> = {
+                                        indices.dedup();
+                                        indices.into_iter().map(|i| vertices[i].clone()).collect()
+                                    };
+                                    // it's technically legal to put this anywhere, but it really only makes sense to either
+                                    // put it at the end or don't put it anywhere
+                                    if let Some(idx) = subset.iter().position(|x| x == v) {
+                                        subset.remove(idx);
+                                        subset.push(v.clone());
+                                    }
                                     (v.clone(), subset)
                                 })
                                 .collect(),

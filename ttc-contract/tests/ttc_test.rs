@@ -34,10 +34,14 @@ static BIG_GAS: u64 = 1_000_000u64;
 
 static ANVIL_CHAIN_ID: u64 = 31337;
 
+static STARTING_ETH_BALANCE: u8 = 5;
+
 // We want to control how the actors (i.e. contract participants) are created.
 // This module forces that only actors with ETH and an NFT are participating,
 // which prevents failures for dumb reasons.
 mod actor {
+    use ethers::{types::TransactionRequest, utils::parse_ether};
+
     use super::*;
 
     #[derive(Debug, Clone, PartialEq)]
@@ -79,14 +83,30 @@ mod actor {
             nonce: U256,
         ) -> Result<Self> {
             let owner_client = Arc::new(SignerMiddleware::new(provider.clone(), owner.clone()));
-            let nft = TestNFT::new(nft_address, owner_client);
+            let nft = TestNFT::new(nft_address, owner_client.clone());
 
+            let faucet_tx: TransactionRequest = TransactionRequest::new()
+                .to(data.wallet.address())
+                .value(parse_ether(STARTING_ETH_BALANCE)?)
+                .nonce(nonce + 1)
+                .into();
+
+            eprintln!("Fauceting account for {}", data.wallet.address());
+            let pending_faucet_tx = owner_client.send_transaction(faucet_tx, None).await?;
+
+            eprintln!(
+                "Assigning token {} to {}",
+                data.token_id,
+                data.wallet.address()
+            );
             nft.safe_mint(data.wallet.address(), data.token_id)
                 .gas(BIG_GAS)
                 .nonce(nonce)
                 .send()
                 .await?
                 .await?;
+
+            pending_faucet_tx.await?;
 
             assert_eq!(
                 nft.owner_of(data.token_id).call().await?,
@@ -107,6 +127,8 @@ use actor::{Actor, ActorData};
 // This function calls the solver and produces the data we need to
 // submit to the contract
 fn reallocate(actors: Vec<Actor>) -> Vec<TokenReallocation> {
+    let depositor_address_from_token_id: HashMap<U256, Address> =
+        actors.iter().map(|a| (a.token_id(), a.address())).collect();
     let prefs: strict::Preferences<U256> = {
         let xs = actors
             .iter()
@@ -116,18 +138,27 @@ fn reallocate(actors: Vec<Actor>) -> Vec<TokenReallocation> {
     };
     let mut g = strict::PreferenceGraph::new(prefs).unwrap();
     let alloc = strict::Allocation::from(g.solve_preferences().unwrap());
-    let token_owners: HashMap<U256, Address> = actors
-        .into_iter()
-        .map(|a| (a.token_id(), a.address()))
-        .collect();
     alloc
         .allocation
         .into_iter()
-        .map(|(token_id, new_owner)| {
-            let new_owner = token_owners.get(&new_owner).unwrap().clone();
+        .map(|(new_owner, token_id)| {
+            let new_owner = depositor_address_from_token_id
+                .get(&new_owner)
+                .unwrap()
+                .clone();
+            let old_owner = depositor_address_from_token_id
+                .get(&token_id)
+                .unwrap()
+                .clone();
+            if new_owner != old_owner {
+                eprintln!(
+                    "A trade happened! {} just got token {}",
+                    new_owner, token_id
+                );
+            }
             TokenReallocation {
-                token_id,
                 new_owner,
+                token_id,
             }
         })
         .collect()
@@ -160,20 +191,17 @@ async fn create_actors(
                 nft_address,
                 owner.clone(),
                 actor_data,
-                start_nonce + i,
+                start_nonce + 2 * i, // there are 2 txs, a coin creation and a faucet
             )
         })
         .collect();
 
-    let results = futures::future::try_join_all(futures).await?;
-    results
-        .try_into()
-        .map_err(|_| eyre::eyre!("Expected exactly 6 results"))
+    futures::future::try_join_all(futures).await
 }
 
 impl TestSetup {
     // Deploy the NFT and TTC contracts and construct the actors.
-    async fn new(prefs: strict::Preferences<U256>) -> Result<Self> {
+    async fn new(actors: Vec<ActorData>) -> Result<Self> {
         let provider = {
             let p = Provider::<Http>::try_from(NODE_URL)?;
             Arc::new(p)
@@ -188,27 +216,7 @@ impl TestSetup {
             .send()
             .await?;
 
-        let actors: Vec<Actor> = {
-            let accounts: Vec<LocalWallet> = ANVIL_PRIVATE_KEYS[1..]
-                .into_iter()
-                .map(|key| {
-                    LocalWallet::from_str(key)
-                        .expect("Invalid private key")
-                        .with_chain_id(ANVIL_CHAIN_ID)
-                })
-                .collect();
-            let xs: Vec<ActorData> = accounts
-                .iter()
-                .zip(prefs.prefs)
-                .map(|(wallet, (token_id, ps))| ActorData {
-                    wallet: wallet.clone(),
-                    token_id,
-                    preferences: ps.clone(),
-                })
-                .collect();
-            eprintln!("Minting tokens for actors");
-            create_actors(provider.clone(), nft.address(), owner.clone(), xs).await?
-        };
+        let actors = create_actors(provider.clone(), nft.address(), owner.clone(), actors).await?;
 
         Ok(Self {
             provider,
@@ -219,20 +227,33 @@ impl TestSetup {
         })
     }
 
-    // All of the actors deposit their NFTs into the TTC contract
     async fn deposit_tokens(&self) -> Result<()> {
-        let futures = self
+        // First do all approvals in parallel
+        let approval_futures = self
             .actors
             .iter()
             .map(|actor| {
                 let client = Arc::new(SignerMiddleware::new(self.provider.clone(), actor.wallet()));
-                let nft = TestNFT::new(self.nft, client.clone());
-                let ttc = TopTradingCycle::new(self.ttc, client);
+                let nft = TestNFT::new(self.nft, client);
                 async move {
                     nft.approve(self.ttc, actor.token_id())
                         .send()
                         .await?
                         .await?;
+                    Ok::<(), eyre::Report>(())
+                }
+            })
+            .collect::<Vec<_>>();
+        futures::future::try_join_all(approval_futures).await?;
+
+        // Then do all deposits in parallel
+        let deposit_futures = self
+            .actors
+            .iter()
+            .map(|actor| {
+                let client = Arc::new(SignerMiddleware::new(self.provider.clone(), actor.wallet()));
+                let ttc = TopTradingCycle::new(self.ttc, client);
+                async move {
                     ttc.deposit_nft(actor.token_id()).send().await?.await?;
                     let token_owner = ttc.token_owners(actor.token_id()).call().await?;
                     assert_eq!(
@@ -244,8 +265,7 @@ impl TestSetup {
                 }
             })
             .collect::<Vec<_>>();
-
-        futures::future::try_join_all(futures).await?;
+        futures::future::try_join_all(deposit_futures).await?;
         Ok(())
     }
 
@@ -269,6 +289,11 @@ impl TestSetup {
                         ps,
                         actor.preferences(),
                         "Preferences not set correctly in contract!"
+                    );
+                    eprintln!(
+                        "User {} set preferences as {:?}",
+                        actor.token_id(),
+                        actor.preferences()
                     );
                     Ok::<(), eyre::Report>(())
                 }
@@ -310,7 +335,8 @@ impl TestSetup {
                         assert_eq!(
                             owner,
                             a.address(),
-                            "Stable owner didn't maintain their token!"
+                            "Stable owner {} didn't maintain their token!",
+                            a.address()
                         );
                         Ok::<(), eyre::Report>(())
                     }
@@ -332,7 +358,11 @@ impl TestSetup {
                         let ttc = ttc.clone();
                         async move {
                             let owner = ttc.get_current_owner(token_id).call().await?;
-                            assert_eq!(owner, new_owner, "Traders didn't get their new token!");
+                            assert_eq!(
+                                owner, new_owner,
+                                "Trader {} didn't get their new token!",
+                                new_owner
+                            );
                             Ok::<(), eyre::Report>(())
                         }
                     },
@@ -378,13 +408,31 @@ impl TestSetup {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ethers::core::rand::thread_rng;
     use proptest::arbitrary::Arbitrary;
     use proptest::strategy::{Strategy, ValueTree};
     use proptest::test_runner::TestRunner; // Add this import
 
+    fn make_actors_data(prefs: Preferences<U256>) -> Vec<ActorData> {
+        let n = prefs.prefs.len();
+        let wallets: Vec<LocalWallet> = (0..n)
+            .map(|_| LocalWallet::new(&mut thread_rng()).with_chain_id(ANVIL_CHAIN_ID))
+            .collect();
+        wallets
+            .iter()
+            .zip(prefs.prefs)
+            .map(|(wallet, (token_id, ps))| ActorData {
+                wallet: wallet.clone(),
+                token_id,
+                preferences: ps.clone(),
+            })
+            .collect()
+    }
+
     async fn run_test_case(p: Preferences<U256>) -> Result<()> {
-        eprintln!("Setting up test environment");
-        let setup = TestSetup::new(p).await?;
+        eprintln!("Setting up test environment for {} actors", p.prefs.len());
+        let actors = make_actors_data(p);
+        let setup = TestSetup::new(actors).await?;
         eprintln!("Depositing tokens to contract");
         setup.deposit_tokens().await?;
         eprintln!("Declaring preferences in contract");
@@ -401,7 +449,7 @@ mod tests {
     async fn test_ttc_flow() -> Result<()> {
         let test_case = {
             let mut runner = TestRunner::default();
-            let strategy = (Preferences::<u64>::arbitrary_with(Some(9..=9)))
+            let strategy = (Preferences::<u64>::arbitrary_with(Some(2..=10)))
                 .prop_map(|prefs| prefs.map(U256::from));
             strategy.new_tree(&mut runner).unwrap().current()
         };
