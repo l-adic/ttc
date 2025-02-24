@@ -247,6 +247,8 @@ where
 
 #[cfg(any(test, feature = "test"))]
 pub mod test_utils {
+    use std::collections::HashSet;
+
     use super::*;
     use proptest::prelude::*;
 
@@ -272,11 +274,11 @@ pub mod test_utils {
                             prefs: vertices
                                 .iter()
                                 .zip(subsets)
-                                .map(|(v, mut indices)| {
-                                    let mut subset: Vec<V> = {
-                                        indices.dedup();
-                                        indices.into_iter().map(|i| vertices[i].clone()).collect()
-                                    };
+                                .map(|(v, indices)| {
+                                    let mut subset: Vec<V> =
+                                        indices.into_iter().map(|i| vertices[i].clone()).collect();
+                                    let mut seen = HashSet::new();
+                                    subset.retain(|item| seen.insert(item.clone()));
                                     // it's technically legal to put this anywhere, but it really only makes sense to either
                                     // put it at the end or don't put it anywhere
                                     if let Some(idx) = subset.iter().position(|x| x == v) {

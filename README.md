@@ -14,5 +14,17 @@ The [wikipedia article](https://en.wikipedia.org/wiki/Top_trading_cycle) does a 
 3. A zkvm capable of running the rust program and generating an ethereum friendly proof (most likely a groth16 wrapped STARK). E.g. [SP1](https://github.com/succinctlabs/sp1) or [risc0](https://risczero.com/)
 4. A simple UI capable of helping a user store/rank/retrieve their NFTs for trading
 
-## NOTES
-The part I'm currently most unclear about is how to prove that the input to the trading algorithm is the current smart contract data. AFAIK this is what risc0's [steel](https://github.com/risc0/risc0-ethereum/tree/main/crates/steel) is supposed to help with, it's unclear to me if SP1 has something similar.
+## Test against local node
+
+Assuming you have [foundry](https://github.com/foundry-rs/foundry?tab=readme-ov-file#installation) installed, start a local node in the background:
+
+```
+> anvil
+```
+
+You can deploy and run the test suite against a live set of contracts on this local node:
+
+```
+> make build
+> make test-contracts
+```
