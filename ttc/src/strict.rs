@@ -68,7 +68,7 @@ pub enum PrefsError<V: Display> {
 
 #[derive(Debug, Clone)]
 pub struct Preferences<V> {
-    prefs: HashMap<V, Vec<V>>,
+    pub prefs: HashMap<V, Vec<V>>,
 }
 
 impl<V> Preferences<V> {
@@ -82,6 +82,24 @@ impl<V: Eq + Hash> Preferences<V> {
         self.prefs
             .get(&participant)
             .map(|prefs| prefs.iter().position(|v| v == &value).unwrap_or(usize::MAX))
+    }
+
+    pub fn get(&self, v: &V) -> Option<&Vec<V>> {
+        self.prefs.get(v)
+    }
+
+    pub fn map<F, W>(self, mut f: F) -> Preferences<W>
+    where
+        F: FnMut(V) -> W,
+        W: Eq + Hash,
+    {
+        Preferences {
+            prefs: self
+                .prefs
+                .into_iter()
+                .map(|(k, vs)| (f(k), vs.into_iter().map(&mut f).collect()))
+                .collect(),
+        }
     }
 }
 
@@ -227,6 +245,46 @@ where
     }
 }
 
+#[cfg(any(test, feature = "test"))]
+pub mod test_utils {
+    use super::*;
+    use proptest::prelude::*;
+
+    impl<V> Arbitrary for Preferences<V>
+    where
+        V: Clone + Eq + std::hash::Hash + Arbitrary,
+        V::Strategy: 'static,
+    {
+        type Parameters = Option<std::ops::RangeInclusive<usize>>;
+        type Strategy = BoxedStrategy<Self>;
+
+        fn arbitrary_with(params: Self::Parameters) -> Self::Strategy {
+            let size_range = params.unwrap_or(2..=32);
+
+            prop::collection::hash_set(any::<V>(), size_range)
+                .prop_flat_map(|vertices| {
+                    let vertices: Vec<V> = vertices.into_iter().collect();
+                    let len = vertices.len();
+                    prop::collection::vec(prop::collection::vec(0..len, 0..len), len).prop_map(
+                        move |subsets| Preferences {
+                            prefs: vertices
+                                .iter()
+                                .zip(subsets)
+                                .map(|(v, indices)| {
+                                    let mut subset: Vec<V> =
+                                        indices.into_iter().map(|i| vertices[i].clone()).collect();
+                                    subset.dedup();
+                                    (v.clone(), subset)
+                                })
+                                .collect(),
+                        },
+                    )
+                })
+                .boxed()
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -291,40 +349,6 @@ mod tests {
         let a_better = a_pref < b_pref;
         let b_better = b_pref < a_pref;
         a_better && b_better
-    }
-
-    impl<V> Arbitrary for Preferences<V>
-    where
-        V: Clone + Eq + std::hash::Hash + Arbitrary,
-        V::Strategy: 'static,
-    {
-        type Parameters = Option<std::ops::RangeInclusive<usize>>;
-        type Strategy = BoxedStrategy<Self>;
-
-        fn arbitrary_with(params: Self::Parameters) -> Self::Strategy {
-            let size_range = params.unwrap_or(2..=32);
-
-            prop::collection::hash_set(any::<V>(), size_range)
-                .prop_flat_map(|vertices| {
-                    let vertices: Vec<V> = vertices.into_iter().collect();
-                    let len = vertices.len();
-                    prop::collection::vec(prop::collection::vec(0..len, 0..len), len).prop_map(
-                        move |subsets| Preferences {
-                            prefs: vertices
-                                .iter()
-                                .zip(subsets)
-                                .map(|(v, indices)| {
-                                    let mut subset: Vec<V> =
-                                        indices.into_iter().map(|i| vertices[i].clone()).collect();
-                                    subset.dedup();
-                                    (v.clone(), subset)
-                                })
-                                .collect(),
-                        },
-                    )
-                })
-                .boxed()
-        }
     }
 
     proptest! {
