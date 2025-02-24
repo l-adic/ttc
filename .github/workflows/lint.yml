@@ -9,8 +9,22 @@ jobs:
     runs-on: ubuntu-latest    
     steps:
     - uses: actions/checkout@v4    
+
     - uses: Swatinem/rust-cache@v2        
+
+    # Install Foundry
+    - name: Install Foundry
+      uses: foundry-rs/foundry-toolchain@v1
+      with:
+        version: nightly
+
+    # Build contracts
+    - name: Build contracts
+      working-directory: ./ttc-contract
+      run: forge build
+
     - name: Check formatting
       run: cargo fmt --check
+
     - name: Run clippy
       run: cargo clippy -- -D warnings

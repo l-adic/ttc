@@ -13,6 +13,17 @@ jobs:
     
     - name: Rust Cache
       uses: Swatinem/rust-cache@v2
+
+    # Install Foundry
+    - name: Install Foundry
+      uses: foundry-rs/foundry-toolchain@v1
+      with:
+        version: nightly
+
+    # Build contracts
+    - name: Build contracts
+      working-directory: ./ttc-contract
+      run: forge build
         
     - name: Run Tests
       run: cargo test
