@@ -20,6 +20,11 @@ jobs:
       with:
         version: nightly
 
+    # Build contracts
+    - name: Build contracts
+      working-directory: ./ttc-contract
+      run: forge build
+
     # Start Anvil in the background
     - name: Start Anvil Node
       run: anvil &
