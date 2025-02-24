@@ -20,10 +20,9 @@ jobs:
       with:
         version: nightly
 
-    # Build contracts
-    - name: Build contracts
-      working-directory: ./ttc-contract
-      run: forge build
+    # Build
+    - name: Build
+      run: make build
 
     # Start Anvil in the background
     - name: Start Anvil Node
@@ -36,9 +35,7 @@ jobs:
     # Run the tests
     - name: Run node tests
       run: |
-        # Wait for anvil to start
-        sleep 5
-        cargo test --release -p ttc-contract --features "node_test" test_ttc_flow -- --nocapture
+        make test-contracts
 
     # Cleanup
     - name: Cleanup
