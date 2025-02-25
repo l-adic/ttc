@@ -34,6 +34,7 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
 
     // Struct to represent a token and its preferences
     struct TokenPreferences {
+        address owner;
         uint256 tokenId;
         uint256[] preferences;
     }
@@ -178,6 +179,7 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
         for (uint256 i = 0; i < totalTokens; i++) {
             uint256 tokenId = depositedTokens[i];
             allPreferences[i] = TokenPreferences({
+                owner: tokenOwners[tokenId],
                 tokenId: tokenId,
                 preferences: tokenPreferences[tokenId]
             });

@@ -395,28 +395,12 @@ impl Prover {
         Ok(res)
     }
 
-    async fn build_owner_dict(&self, prefs: &[TokenPreferences]) -> Result<HashMap<U256, Address>> {
-        let client = Arc::new(SignerMiddleware::new(
-            self.provider.clone(),
-            self.wallet.clone(),
-        ));
-        let ttc = Arc::new(TopTradingCycle::new(self.ttc, client));
-
-        let owner_futures = prefs
+    fn build_owner_dict(prefs: &[TokenPreferences]) -> HashMap<U256, Address> {
+        prefs
             .iter()
             .cloned()
-            .map(|TokenPreferences { token_id, .. }| {
-                let ttc = ttc.clone();
-
-                async move {
-                    let owner = ttc.get_current_owner(token_id.clone()).call().await?;
-                    Ok((token_id, owner))
-                }
-            })
-            .collect::<Vec<_>>();
-
-        let results = futures::future::try_join_all(owner_futures).await?;
-        Ok(results.into_iter().collect())
+            .map(|tp| (tp.token_id, tp.owner))
+            .collect()
     }
 
     // This function calls the solver and produces the data we need to
@@ -433,6 +417,7 @@ impl Prover {
                     |TokenPreferences {
                          token_id,
                          preferences,
+                         ..
                      }| { (token_id, preferences) },
                 )
                 .collect();
@@ -503,7 +488,7 @@ mod tests {
         let reallocs = {
             let prover = Prover::new(&setup);
             let prefs = prover.fetch_preferences().await?;
-            let owner_dict = prover.build_owner_dict(&prefs).await?;
+            let owner_dict = Prover::build_owner_dict(&prefs);
             prover.reallocate(owner_dict, prefs)
         };
         setup.reallocate(&reallocs).await?;
