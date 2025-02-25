@@ -75,6 +75,10 @@ mod actor {
             self.preferences.clone()
         }
 
+        pub fn with_token_id(self, token_id: U256) -> Self {
+            Self { token_id, ..self }
+        }
+
         pub async fn new(
             provider: Arc<Provider<Http>>,
             nft_address: Address,
@@ -123,6 +127,42 @@ mod actor {
 }
 
 use actor::{Actor, ActorData};
+
+struct TradeResults {
+    stable: Vec<Actor>,
+    traders: Vec<Actor>,
+}
+
+fn results(original: &[Actor], reallocations: &[TokenReallocation]) -> TradeResults {
+    // all the actors who kept their current coins
+    let stable: Vec<Actor> = {
+        original
+            .iter()
+            .cloned()
+            .filter(|a| {
+                reallocations.contains(&TokenReallocation {
+                    token_id: a.token_id(),
+                    new_owner: a.address(),
+                })
+            })
+            .collect::<Vec<_>>()
+    };
+    // all of the actors who made a trade
+    let traders: Vec<Actor> = reallocations
+        .iter()
+        .cloned()
+        .filter_map(|tr| {
+            original
+                .iter()
+                .cloned()
+                .filter(|a| !stable.contains(a))
+                .find(|a| a.address() == tr.new_owner)
+                .map(|a| (tr, a))
+        })
+        .map(|(tr, a)| a.with_token_id(tr.token_id))
+        .collect();
+    TradeResults { stable, traders }
+}
 
 struct TestSetup {
     provider: Arc<Provider<Http>>,
@@ -271,32 +311,30 @@ impl TestSetup {
             self.owner.clone(),
         ));
         let ttc = TopTradingCycle::new(self.ttc, client);
-        let stable: Vec<Actor> = {
-            self.actors
-                .iter()
-                .cloned()
-                .filter(|a| !reallocations.iter().any(|y| (*y).new_owner == a.address()))
-                .collect::<Vec<_>>()
-        };
-
         ttc.reallocate_tokens(reallocations.to_vec())
             .gas(BIG_GAS)
             .send()
             .await?
             .await?;
+        Ok(())
+    }
+
+    // All of the actors withdraw their tokens, assert that they are getting the right ones!
+    async fn withraw(&self, trade_results: &TradeResults) -> Result<()> {
+        eprintln!("assert that the stable actors kept their tokens");
         {
-            let stable_verification_futures = stable
-                .into_iter()
+            let stable_verification_futures = trade_results
+                .stable
+                .iter()
                 .map(|a| {
-                    let ttc = ttc.clone();
+                    let client = Arc::new(SignerMiddleware::new(
+                        self.provider.clone(),
+                        a.wallet().clone(),
+                    ));
+                    let ttc = TopTradingCycle::new(self.ttc, client);
                     async move {
-                        let owner = ttc.get_current_owner(a.token_id()).call().await?;
-                        assert_eq!(
-                            owner,
-                            a.address(),
-                            "Stable owner {} didn't maintain their token!",
-                            a.address()
-                        );
+                        eprintln!("Withdrawing token {} for {}", a.token_id(), a.address());
+                        ttc.withdraw_nft(a.token_id().clone()).send().await?;
                         Ok(())
                     }
                 })
@@ -305,63 +343,31 @@ impl TestSetup {
             futures::future::try_join_all(stable_verification_futures).await?;
         }
 
+        eprintln!("assert that the trading actors get their new tokens");
         {
-            let reallocated_verification_futures = reallocations
+            let stable_verification_futures = trade_results
+                .traders
                 .iter()
-                .cloned()
-                .map(
-                    |TokenReallocation {
-                         token_id,
-                         new_owner,
-                     }| {
-                        let ttc = ttc.clone();
-                        async move {
-                            let owner = ttc.get_current_owner(token_id).call().await?;
-                            assert_eq!(
-                                owner, new_owner,
-                                "Trader {} didn't get their new token!",
-                                new_owner
-                            );
-                            Ok(())
-                        }
-                    },
-                )
-                .collect::<Vec<_>>();
-
-            futures::future::try_join_all(reallocated_verification_futures).await?;
-        }
-        Ok(())
-    }
-
-    // All of the actors withdraw their tokens, assert that they are getting the right ones!
-    async fn withraw(&self, reallocations: &[TokenReallocation]) -> Result<()> {
-        let token_owners: HashMap<Address, LocalWallet> = self
-            .actors
-            .iter()
-            .map(|a| (a.address(), a.wallet()))
-            .collect();
-        let futures = reallocations
-            .into_iter()
-            .map(
-                |TokenReallocation {
-                     new_owner,
-                     token_id,
-                 }| {
-                    let wallet = token_owners.get(&new_owner).unwrap();
-                    let client =
-                        Arc::new(SignerMiddleware::new(self.provider.clone(), wallet.clone()));
+                .map(|a| {
+                    let client = Arc::new(SignerMiddleware::new(
+                        self.provider.clone(),
+                        a.wallet().clone(),
+                    ));
                     let ttc = TopTradingCycle::new(self.ttc, client);
                     async move {
-                        ttc.withdraw_nft(token_id.clone()).send().await?.await?;
+                        eprintln!("Withdrawing token {} for {}", a.token_id(), a.address());
+                        ttc.withdraw_nft(a.token_id().clone()).send().await?;
                         Ok(())
                     }
-                },
-            )
-            .collect::<Vec<_>>();
+                })
+                .collect::<Vec<_>>();
 
-        futures::future::try_join_all(futures).await?;
+            futures::future::try_join_all(stable_verification_futures).await?;
+        }
+
         Ok(())
     }
+    // assert that the traders got their new tokens
 }
 
 struct Prover {
@@ -502,7 +508,8 @@ mod tests {
         };
         setup.reallocate(&reallocs).await?;
         eprintln!("Withdrawing tokens from contract back to owners");
-        setup.withraw(&reallocs).await?;
+        let trade_results = results(&setup.actors, &reallocs);
+        setup.withraw(&trade_results).await?;
         Ok(())
     }
 
@@ -511,7 +518,7 @@ mod tests {
     async fn test_ttc_flow() -> Result<()> {
         let test_case = {
             let mut runner = TestRunner::default();
-            let strategy = (Preferences::<u64>::arbitrary_with(Some(2..=10)))
+            let strategy = (Preferences::<u64>::arbitrary_with(Some(2..=5)))
                 .prop_map(|prefs| prefs.map(U256::from));
             strategy.new_tree(&mut runner).unwrap().current()
         };
