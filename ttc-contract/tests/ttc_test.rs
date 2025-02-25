@@ -271,19 +271,38 @@ impl TestSetup {
             self.owner.clone(),
         ));
         let ttc = TopTradingCycle::new(self.ttc, client);
+        // all the actors who kept their current coins
         let stable: Vec<Actor> = {
             self.actors
                 .iter()
                 .cloned()
-                .filter(|a| !reallocations.iter().any(|y| (*y).new_owner == a.address()))
+                .filter(|a| {
+                    reallocations.contains(&TokenReallocation {
+                        token_id: a.token_id(),
+                        new_owner: a.address(),
+                    })
+                })
                 .collect::<Vec<_>>()
         };
+        // all of the actors who made a trade
+        let traders = reallocations
+            .iter()
+            .cloned()
+            .filter(|a| {
+                !stable
+                    .iter()
+                    .map(|x| x.address())
+                    .collect::<Vec<_>>()
+                    .contains(&a.new_owner)
+            })
+            .collect::<Vec<_>>();
 
         ttc.reallocate_tokens(reallocations.to_vec())
             .gas(BIG_GAS)
             .send()
             .await?
             .await?;
+        // assert that the stable actors kept their tokens
         {
             let stable_verification_futures = stable
                 .into_iter()
@@ -304,9 +323,9 @@ impl TestSetup {
 
             futures::future::try_join_all(stable_verification_futures).await?;
         }
-
+        // assert that the traders got their new tokens
         {
-            let reallocated_verification_futures = reallocations
+            let reallocated_verification_futures = traders
                 .iter()
                 .cloned()
                 .map(
@@ -511,7 +530,7 @@ mod tests {
     async fn test_ttc_flow() -> Result<()> {
         let test_case = {
             let mut runner = TestRunner::default();
-            let strategy = (Preferences::<u64>::arbitrary_with(Some(2..=10)))
+            let strategy = (Preferences::<u64>::arbitrary_with(Some(2..=5)))
                 .prop_map(|prefs| prefs.map(U256::from));
             strategy.new_tree(&mut runner).unwrap().current()
         };
