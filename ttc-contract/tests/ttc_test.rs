@@ -4,13 +4,13 @@ use ethers::{
     signers::{LocalWallet, Signer},
     types::{Address, U256},
 };
-use eyre::Result;
+use eyre::{Ok, Result};
 use std::sync::Arc;
 use std::{collections::HashMap, str::FromStr};
 use ttc::strict::{self, Preferences};
 use ttc_contract::{
     nft::TestNFT,
-    ttc::{TopTradingCycle, top_trading_cycle::TokenReallocation},
+    ttc::{TokenPreferences, TopTradingCycle, top_trading_cycle::TokenReallocation},
 };
 
 // I only know these because they are printed when the node starts up, they each come with a balance
@@ -124,46 +124,6 @@ mod actor {
 
 use actor::{Actor, ActorData};
 
-// This function calls the solver and produces the data we need to
-// submit to the contract
-fn reallocate(actors: Vec<Actor>) -> Vec<TokenReallocation> {
-    let depositor_address_from_token_id: HashMap<U256, Address> =
-        actors.iter().map(|a| (a.token_id(), a.address())).collect();
-    let prefs: strict::Preferences<U256> = {
-        let xs = actors
-            .iter()
-            .map(|a| (a.token_id(), a.preferences()))
-            .collect();
-        strict::Preferences::new(xs).unwrap()
-    };
-    let mut g = strict::PreferenceGraph::new(prefs).unwrap();
-    let alloc = strict::Allocation::from(g.solve_preferences().unwrap());
-    alloc
-        .allocation
-        .into_iter()
-        .map(|(new_owner, token_id)| {
-            let new_owner = depositor_address_from_token_id
-                .get(&new_owner)
-                .unwrap()
-                .clone();
-            let old_owner = depositor_address_from_token_id
-                .get(&token_id)
-                .unwrap()
-                .clone();
-            if new_owner != old_owner {
-                eprintln!(
-                    "A trade happened! {} just got token {}",
-                    new_owner, token_id
-                );
-            }
-            TokenReallocation {
-                new_owner,
-                token_id,
-            }
-        })
-        .collect()
-}
-
 struct TestSetup {
     provider: Arc<Provider<Http>>,
     nft: Address,
@@ -240,7 +200,7 @@ impl TestSetup {
                         .send()
                         .await?
                         .await?;
-                    Ok::<(), eyre::Report>(())
+                    Ok(())
                 }
             })
             .collect::<Vec<_>>();
@@ -261,7 +221,7 @@ impl TestSetup {
                         actor.address(),
                         "Token not deposited correctly in contract!"
                     );
-                    Ok::<(), eyre::Report>(())
+                    Ok(())
                 }
             })
             .collect::<Vec<_>>();
@@ -295,7 +255,7 @@ impl TestSetup {
                         actor.token_id(),
                         actor.preferences()
                     );
-                    Ok::<(), eyre::Report>(())
+                    Ok(())
                 }
             })
             .collect::<Vec<_>>();
@@ -305,13 +265,12 @@ impl TestSetup {
     }
 
     // Call the solver and submit the reallocation data to the contract
-    async fn reallocate(&self) -> Result<Vec<TokenReallocation>> {
+    async fn reallocate(&self, reallocations: &[TokenReallocation]) -> Result<()> {
         let client = Arc::new(SignerMiddleware::new(
             self.provider.clone(),
             self.owner.clone(),
         ));
         let ttc = TopTradingCycle::new(self.ttc, client);
-        let reallocations: Vec<TokenReallocation> = reallocate(self.actors.clone());
         let stable: Vec<Actor> = {
             self.actors
                 .iter()
@@ -320,7 +279,7 @@ impl TestSetup {
                 .collect::<Vec<_>>()
         };
 
-        ttc.reallocate_tokens(reallocations.clone())
+        ttc.reallocate_tokens(reallocations.to_vec())
             .gas(BIG_GAS)
             .send()
             .await?
@@ -338,7 +297,7 @@ impl TestSetup {
                             "Stable owner {} didn't maintain their token!",
                             a.address()
                         );
-                        Ok::<(), eyre::Report>(())
+                        Ok(())
                     }
                 })
                 .collect::<Vec<_>>();
@@ -363,7 +322,7 @@ impl TestSetup {
                                 "Trader {} didn't get their new token!",
                                 new_owner
                             );
-                            Ok::<(), eyre::Report>(())
+                            Ok(())
                         }
                     },
                 )
@@ -371,11 +330,11 @@ impl TestSetup {
 
             futures::future::try_join_all(reallocated_verification_futures).await?;
         }
-        Ok(reallocations)
+        Ok(())
     }
 
     // All of the actors withdraw their tokens, assert that they are getting the right ones!
-    async fn withraw(&self, reallocations: Vec<TokenReallocation>) -> Result<()> {
+    async fn withraw(&self, reallocations: &[TokenReallocation]) -> Result<()> {
         let token_owners: HashMap<Address, LocalWallet> = self
             .actors
             .iter()
@@ -393,8 +352,8 @@ impl TestSetup {
                         Arc::new(SignerMiddleware::new(self.provider.clone(), wallet.clone()));
                     let ttc = TopTradingCycle::new(self.ttc, client);
                     async move {
-                        ttc.withdraw_nft(token_id).send().await?.await?;
-                        Ok::<(), eyre::Report>(())
+                        ttc.withdraw_nft(token_id.clone()).send().await?.await?;
+                        Ok(())
                     }
                 },
             )
@@ -402,6 +361,103 @@ impl TestSetup {
 
         futures::future::try_join_all(futures).await?;
         Ok(())
+    }
+}
+
+struct Prover {
+    provider: Arc<Provider<Http>>,
+    ttc: Address,
+    wallet: LocalWallet,
+}
+
+impl Prover {
+    fn new(test_setup: &TestSetup) -> Self {
+        Self {
+            provider: test_setup.provider.clone(),
+            ttc: test_setup.ttc,
+            wallet: test_setup.owner.clone(),
+        }
+    }
+
+    async fn fetch_preferences(&self) -> Result<Vec<TokenPreferences>> {
+        let client = Arc::new(SignerMiddleware::new(
+            self.provider.clone(),
+            self.wallet.clone(),
+        ));
+        let ttc = TopTradingCycle::new(self.ttc, client);
+        let res = ttc.get_all_token_preferences().call().await?;
+        Ok(res)
+    }
+
+    async fn build_owner_dict(&self, prefs: &[TokenPreferences]) -> Result<HashMap<U256, Address>> {
+        let client = Arc::new(SignerMiddleware::new(
+            self.provider.clone(),
+            self.wallet.clone(),
+        ));
+        let ttc = Arc::new(TopTradingCycle::new(self.ttc, client));
+
+        let owner_futures = prefs
+            .iter()
+            .cloned()
+            .map(|TokenPreferences { token_id, .. }| {
+                let ttc = ttc.clone();
+
+                async move {
+                    let owner = ttc.get_current_owner(token_id.clone()).call().await?;
+                    Ok((token_id, owner))
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let results = futures::future::try_join_all(owner_futures).await?;
+        Ok(results.into_iter().collect())
+    }
+
+    // This function calls the solver and produces the data we need to
+    // submit to the contract
+    fn reallocate(
+        &self,
+        depositor_address_from_token_id: HashMap<U256, Address>,
+        prefs: Vec<TokenPreferences>,
+    ) -> Vec<TokenReallocation> {
+        let prefs = {
+            let ps = prefs
+                .into_iter()
+                .map(
+                    |TokenPreferences {
+                         token_id,
+                         preferences,
+                     }| { (token_id, preferences) },
+                )
+                .collect();
+            Preferences::new(ps).unwrap()
+        };
+        let mut g = strict::PreferenceGraph::new(prefs).unwrap();
+        let alloc = strict::Allocation::from(g.solve_preferences().unwrap());
+        alloc
+            .allocation
+            .into_iter()
+            .map(|(new_owner, token_id)| {
+                let new_owner = depositor_address_from_token_id
+                    .get(&new_owner)
+                    .unwrap()
+                    .clone();
+                let old_owner = depositor_address_from_token_id
+                    .get(&token_id)
+                    .unwrap()
+                    .clone();
+                if new_owner != old_owner {
+                    eprintln!(
+                        "A trade happened! {} just got token {}",
+                        new_owner, token_id
+                    );
+                }
+                TokenReallocation {
+                    new_owner,
+                    token_id,
+                }
+            })
+            .collect()
     }
 }
 
@@ -437,10 +493,16 @@ mod tests {
         setup.deposit_tokens().await?;
         eprintln!("Declaring preferences in contract");
         setup.set_preferences().await?;
-        eprintln!("Computing the reallocation and submitting to contract");
-        let reallocs = setup.reallocate().await?;
+        eprintln!("Computing the reallocation");
+        let reallocs = {
+            let prover = Prover::new(&setup);
+            let prefs = prover.fetch_preferences().await?;
+            let owner_dict = prover.build_owner_dict(&prefs).await?;
+            prover.reallocate(owner_dict, prefs)
+        };
+        setup.reallocate(&reallocs).await?;
         eprintln!("Withdrawing tokens from contract back to owners");
-        setup.withraw(reallocs).await?;
+        setup.withraw(&reallocs).await?;
         Ok(())
     }
 
