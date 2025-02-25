@@ -265,10 +265,7 @@ impl TestSetup {
     }
 
     // Call the solver and submit the reallocation data to the contract
-    async fn reallocate(
-        &self,
-        reallocations: Vec<TokenReallocation>,
-    ) -> Result<Vec<TokenReallocation>> {
+    async fn reallocate(&self, reallocations: &[TokenReallocation]) -> Result<()> {
         let client = Arc::new(SignerMiddleware::new(
             self.provider.clone(),
             self.owner.clone(),
@@ -282,7 +279,7 @@ impl TestSetup {
                 .collect::<Vec<_>>()
         };
 
-        ttc.reallocate_tokens(reallocations.clone())
+        ttc.reallocate_tokens(reallocations.to_vec())
             .gas(BIG_GAS)
             .send()
             .await?
@@ -333,11 +330,11 @@ impl TestSetup {
 
             futures::future::try_join_all(reallocated_verification_futures).await?;
         }
-        Ok(reallocations)
+        Ok(())
     }
 
     // All of the actors withdraw their tokens, assert that they are getting the right ones!
-    async fn withraw(&self, reallocations: Vec<TokenReallocation>) -> Result<()> {
+    async fn withraw(&self, reallocations: &[TokenReallocation]) -> Result<()> {
         let token_owners: HashMap<Address, LocalWallet> = self
             .actors
             .iter()
@@ -355,7 +352,7 @@ impl TestSetup {
                         Arc::new(SignerMiddleware::new(self.provider.clone(), wallet.clone()));
                     let ttc = TopTradingCycle::new(self.ttc, client);
                     async move {
-                        ttc.withdraw_nft(token_id).send().await?.await?;
+                        ttc.withdraw_nft(token_id.clone()).send().await?.await?;
                         Ok(())
                     }
                 },
@@ -496,16 +493,16 @@ mod tests {
         setup.deposit_tokens().await?;
         eprintln!("Declaring preferences in contract");
         setup.set_preferences().await?;
-        eprintln!("Computing the reallocation and submitting to contract");
+        eprintln!("Computing the reallocation");
         let reallocs = {
             let prover = Prover::new(&setup);
             let prefs = prover.fetch_preferences().await?;
             let owner_dict = prover.build_owner_dict(&prefs).await?;
             prover.reallocate(owner_dict, prefs)
         };
-        let reallocs = setup.reallocate(reallocs).await?;
+        setup.reallocate(&reallocs).await?;
         eprintln!("Withdrawing tokens from contract back to owners");
-        setup.withraw(reallocs).await?;
+        setup.withraw(&reallocs).await?;
         Ok(())
     }
 
