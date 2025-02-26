@@ -22,7 +22,7 @@ jobs:
 
     # Build contracts
     - name: Build contracts
-      working-directory: ./ttc-contract
+      working-directory: ./contract
       run: forge build
         
     - name: Run Tests
