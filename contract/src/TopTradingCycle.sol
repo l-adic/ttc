@@ -5,12 +5,17 @@ import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+//import {IRiscZeroVerifier} from "risc0/IRiscZeroVerifier.sol";
+//import {Steel} from "risc0/steel/Steel.sol";
+//import {ImageID} from "./ImageID.sol";
+
 
 /**
  * @title TopTradingCycle
  * @dev Contract for managing NFT custody and transfers in a top trading cycle
  */
 contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
+
     // The ERC721 contract this TTC operates on
     IERC721 public immutable nftContract;
     
@@ -194,6 +199,22 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
         address newOwner;
     }
 
+    struct Journal {
+        address ttcContract;
+        TokenReallocation[] reallocations;
+    }
+
+    /**
+     * @dev Parse journal data from bytes into a Journal struct
+     * @param journalData The ABI encoded journal data
+     * @return journal The decoded Journal struct
+     */
+    function parseJournal(bytes calldata journalData) public pure returns (Journal memory) {
+        Journal memory journal = abi.decode(journalData, (Journal));
+        return journal;
+    }
+
+
     /**
      * @dev STUB FUNCTION - Atomic reallocation of token ownership
      * This function will implement the core top trading cycle algorithm
@@ -205,14 +226,22 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
      * - Each token can only appear once
      * - The reallocation must form valid trading cycles
      * 
-     * @param reallocations Array of TokenReallocation structs defining the (old, new) token pairs
+     * @param journalData bytes representing the abi encoded journal
      */
-    function reallocateTokens(TokenReallocation[] calldata reallocations) external {
-        // TODO: Implement validation of trading cycles
-        // TODO: Implement actual reallocation logic
-        
-        for (uint256 i = 0; i < reallocations.length; i++) {
-            TokenReallocation calldata realloc = reallocations[i];
+
+    function reallocateTokens(bytes calldata journalData) external {
+
+         // Decode and validate the journal data
+        Journal memory journal = parseJournal(journalData);
+        require(journal.ttcContract == address(this), "Invalid token address");
+        // require(Steel.validateCommitment(journal.commitment), "Invalid commitment");
+
+        // Verify the proof
+        // bytes32 journalHash = sha256(journalData);
+        // verifier.verify(seal, imageID, journalHash);
+
+        for (uint256 i = 0; i < journal.reallocations.length; i++) {
+            TokenReallocation memory realloc = journal.reallocations[i];
             address currentOwner = tokenOwners[realloc.tokenId];
             _transferNFTOwnership(currentOwner, realloc.newOwner, realloc.tokenId);
         }

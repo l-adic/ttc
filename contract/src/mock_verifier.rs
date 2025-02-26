@@ -5,4 +5,3 @@ sol!(
     MockVerifier,
     "./out/MockVerifier.sol/MockVerifier.json"
 );
-
