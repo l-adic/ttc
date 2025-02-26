@@ -1,5 +1,5 @@
 [package]
-name = "ttc-contract"
+name = "contract"
 version = { workspace = true }
 edition = { workspace = true }
 

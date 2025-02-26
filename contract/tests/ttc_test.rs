@@ -7,7 +7,7 @@ use risc0_steel::alloy::{
 };
 use std::{collections::HashMap, str::FromStr};
 use ttc::strict::{self, Preferences};
-use ttc_contract::{nft::TestNFT, ttc::TopTradingCycle};
+use contract::{nft::TestNFT, ttc::TopTradingCycle};
 use url::Url;
 
 // I only know these because they are printed when the node starts up, they each come with a balance

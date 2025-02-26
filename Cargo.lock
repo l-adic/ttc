@@ -1194,6 +1194,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "contract"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "futures",
+ "proptest",
+ "risc0-steel",
+ "tokio",
+ "ttc",
+ "url",
+]
+
+[[package]]
 name = "convert_case"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4258,19 +4271,6 @@ dependencies = [
  "petgraph",
  "proptest",
  "thiserror 2.0.11",
-]
-
-[[package]]
-name = "ttc-contract"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "futures",
- "proptest",
- "risc0-steel",
- "tokio",
- "ttc",
- "url",
 ]
 
 [[package]]
