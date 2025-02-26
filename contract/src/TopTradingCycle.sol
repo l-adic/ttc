@@ -5,9 +5,9 @@ import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-//import {IRiscZeroVerifier} from "risc0/IRiscZeroVerifier.sol";
-//import {Steel} from "risc0/steel/Steel.sol";
-//import {ImageID} from "./ImageID.sol";
+import {IRiscZeroVerifier} from "risc0/IRiscZeroVerifier.sol";
+import {Steel} from "risc0/steel/Steel.sol";
+import {ImageID} from "./ImageID.sol";
 
 
 /**
@@ -200,6 +200,7 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
     }
 
     struct Journal {
+        Steel.Commitment commitment ;
         address ttcContract;
         TokenReallocation[] reallocations;
     }

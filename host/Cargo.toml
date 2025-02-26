@@ -11,6 +11,9 @@ url = { version = "2.5" }
 
 anyhow.workspace = true
 proptest.workspace = true
+risc0-ethereum-contracts.workspace = true
 risc0-steel.workspace = true
+risc0-zkvm = { workspace = true }
 ttc = { workspace = true, features = ["test"] }
+ttc-methods.workspace = true
 contract.workspace = true

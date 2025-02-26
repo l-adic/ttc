@@ -404,9 +404,9 @@ async fn run_test_case(config: Config, p: Preferences<U256>) -> Result<()> {
             ttc: setup.ttc,
         };
         let prover = Prover::new(&config);
-        let prefs = prover.fetch_preferences().await?;
-        prover.prove(prefs)
-    };
+        let (proof, _) = prover.prove().await?;
+        Ok(proof)
+    }?;
     setup.reallocate(proof.clone()).await?;
     eprintln!("Withdrawing tokens from contract back to owners");
     let trade_results = results(&setup.actors, &proof.reallocations);
