@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
 members = [
-    "ttc", "contract",
+    "ttc", "contract", "host",
 ]
 
 [workspace.package]
@@ -10,6 +10,7 @@ edition = "2024"
 
 [workspace.dependencies]
 anyhow = "1.0"
+clap = { version = "4.4", features = ["derive"] }
 futures = "0.3"
 itertools = "0.14.0"
 petgraph = { version = "0.7.1", default-features = false }
@@ -23,4 +24,4 @@ risc0-steel = { git = "https://github.com/risc0/risc0-ethereum", tag = "v1.4.0-r
 # risc0-ethereum-contracts = { git = "https://github.com/risc0/risc0-ethereum", tag = "v1.4.0-rc.1" }
 
 ttc = { path = "ttc" }
-ttc-contract = { path = "ttc-contract" }
+contract = { path = "contract" }

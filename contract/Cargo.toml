@@ -5,15 +5,3 @@ edition = { workspace = true }
 
 [dependencies]
 risc0-steel = { workspace = true, features = ["host"]}
-
-[dev-dependencies]
-anyhow.workspace = true
-futures.workspace = true
-proptest.workspace = true
-risc0-steel.workspace = true
-ttc = { workspace = true, features = ["test"] }
-tokio.workspace = true
-url.workspace = true
-
-[features]
-node_test = []

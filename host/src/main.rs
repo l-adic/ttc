@@ -1,4 +1,12 @@
 use anyhow::{Ok, Result};
+use clap::Parser;
+use contract::{nft::TestNFT, ttc::TopTradingCycle};
+use proptest::{
+    arbitrary::Arbitrary,
+    strategy::{Strategy, ValueTree},
+    test_runner::TestRunner,
+};
+use risc0_steel::alloy::signers::Signer;
 use risc0_steel::alloy::{
     network::EthereumWallet,
     primitives::{Address, U256, utils::parse_ether},
@@ -7,31 +15,7 @@ use risc0_steel::alloy::{
 };
 use std::{collections::HashMap, str::FromStr};
 use ttc::strict::{self, Preferences};
-use contract::{nft::TestNFT, ttc::TopTradingCycle};
-use url::Url;
-
-// I only know these because they are printed when the node starts up, they each come with a balance
-// of 10000 ETH.
-static ANVIL_PRIVATE_KEYS: [&str; 10] = [
-    "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
-    "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
-    "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a",
-    "0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6",
-    "0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a",
-    "0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba",
-    "0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e",
-    "0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356",
-    "0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97",
-    "0x2a871d0798f97d79848a013d4936a73bf4cc922c825d33c1cf7073dff6d409c6",
-];
-
-static NODE_URL: &str = "http://localhost:8545";
-
-static BIG_GAS: u64 = 1_000_000u64;
-
-static ANVIL_CHAIN_ID: u64 = 31337;
-
-static STARTING_ETH_BALANCE: &str = "5";
+use url::Url; // Add this import
 
 fn create_provider(node_url: Url, signer: PrivateKeySigner) -> impl Provider {
     let wallet = EthereumWallet::from(signer);
@@ -81,6 +65,7 @@ mod actor {
         }
 
         pub async fn new(
+            cli_args: CliArgs,
             node_url: Url,
             nft_address: Address,
             owner: PrivateKeySigner,
@@ -93,10 +78,10 @@ mod actor {
             let pending_faucet_tx = {
                 let faucet_tx = TransactionRequest::default()
                     .to(data.wallet.address())
-                    .value(parse_ether(STARTING_ETH_BALANCE)?)
+                    .value(parse_ether(&cli_args.initial_balance)?)
                     .nonce(nonce + 1)
-                    .with_gas_limit(BIG_GAS)
-                    .with_chain_id(ANVIL_CHAIN_ID);
+                    .with_gas_limit(cli_args.max_gas)
+                    .with_chain_id(cli_args.chain_id);
                 provider.send_transaction(faucet_tx).await?.watch()
             };
 
@@ -107,7 +92,7 @@ mod actor {
             );
             let nft = TestNFT::new(nft_address, &provider);
             nft.safeMint(data.wallet.address(), data.token_id)
-                .gas(BIG_GAS)
+                .gas(cli_args.max_gas)
                 .nonce(nonce)
                 .send()
                 .await?
@@ -145,13 +130,13 @@ fn results(
     let stable: Vec<Actor> = {
         original
             .iter()
-            .cloned()
             .filter(|a| {
                 reallocations.contains(&TopTradingCycle::TokenReallocation {
                     tokenId: a.token_id(),
                     newOwner: a.address(),
                 })
             })
+            .cloned()
             .collect::<Vec<_>>()
     };
     // all of the actors who made a trade
@@ -161,9 +146,9 @@ fn results(
         .filter_map(|tr| {
             original
                 .iter()
-                .cloned()
                 .filter(|a| !stable.contains(a))
                 .find(|a| a.address() == tr.newOwner)
+                .cloned()
                 .map(|a| (tr, a))
         })
         .map(|(tr, a)| a.with_token_id(tr.tokenId))
@@ -173,6 +158,7 @@ fn results(
 
 struct TestSetup {
     node_url: Url,
+    cli_args: CliArgs,
     nft: Address,
     ttc: Address,
     owner: PrivateKeySigner,
@@ -180,6 +166,7 @@ struct TestSetup {
 }
 
 async fn create_actors(
+    cli_args: CliArgs,
     node_url: Url,
     nft_address: Address,
     owner: PrivateKeySigner,
@@ -194,6 +181,7 @@ async fn create_actors(
         .enumerate()
         .map(|(i, actor_data)| {
             actor::Actor::new(
+                cli_args.clone(),
                 node_url.clone(),
                 nft_address,
                 owner.clone(),
@@ -208,22 +196,28 @@ async fn create_actors(
 
 impl TestSetup {
     // Deploy the NFT and TTC contracts and construct the actors.
-    async fn new(owner: PrivateKeySigner, actors: Vec<ActorData>) -> Result<Self> {
-        let node_url = Url::parse(NODE_URL)?;
+    async fn new(cli_args: CliArgs, actors: Vec<ActorData>) -> Result<Self> {
+        let node_url = Url::parse(&cli_args.node_url.clone())?;
+        let owner = PrivateKeySigner::from_str(cli_args.owner_key.as_str())?;
 
         let provider = create_provider(node_url.clone(), owner.clone());
 
         eprintln!("Deploying NFT");
-        let nft = TestNFT::deploy(&provider).await?.address().clone();
+        let nft = *TestNFT::deploy(&provider).await?.address();
         eprintln!("Deploying TTC");
-        let ttc = TopTradingCycle::deploy(&provider, nft.clone())
-            .await?
-            .address()
-            .clone();
+        let ttc = *TopTradingCycle::deploy(&provider, nft).await?.address();
 
-        let actors = create_actors(node_url.clone(), nft.clone(), owner.clone(), actors).await?;
+        let actors = create_actors(
+            cli_args.clone(),
+            node_url.clone(),
+            nft,
+            owner.clone(),
+            actors,
+        )
+        .await?;
 
         Ok(Self {
+            cli_args,
             node_url,
             nft,
             ttc,
@@ -290,7 +284,7 @@ impl TestSetup {
                 let ttc = TopTradingCycle::new(self.ttc, provider);
                 async move {
                     ttc.setPreferences(actor.token_id(), actor.preferences())
-                        .gas(BIG_GAS)
+                        .gas(self.cli_args.max_gas)
                         .send()
                         .await?
                         .watch()
@@ -320,7 +314,7 @@ impl TestSetup {
         let provider = create_provider(self.node_url.clone(), self.owner.clone());
         let ttc = TopTradingCycle::new(self.ttc, provider);
         ttc.reallocateTokens(reallocations.to_vec())
-            .gas(BIG_GAS)
+            .gas(self.cli_args.max_gas)
             .send()
             .await?
             .watch()
@@ -344,7 +338,7 @@ impl TestSetup {
                             actor.token_id(),
                             actor.address()
                         );
-                        ttc.withdrawNFT(actor.token_id().clone())
+                        ttc.withdrawNFT(actor.token_id())
                             .send()
                             .await?
                             .watch()
@@ -371,7 +365,7 @@ impl TestSetup {
                             actor.token_id(),
                             actor.address()
                         );
-                        ttc.withdrawNFT(actor.token_id().clone())
+                        ttc.withdrawNFT(actor.token_id())
                             .send()
                             .await?
                             .watch()
@@ -445,14 +439,8 @@ impl Prover {
             .allocation
             .into_iter()
             .map(|(new_owner, token_id)| {
-                let new_owner = depositor_address_from_token_id
-                    .get(&new_owner)
-                    .unwrap()
-                    .clone();
-                let old_owner = depositor_address_from_token_id
-                    .get(&token_id)
-                    .unwrap()
-                    .clone();
+                let new_owner = depositor_address_from_token_id.get(&new_owner).unwrap();
+                let old_owner = depositor_address_from_token_id.get(&token_id).unwrap();
                 if new_owner != old_owner {
                     eprintln!(
                         "A trade happened! {} just got token {}",
@@ -460,7 +448,7 @@ impl Prover {
                     );
                 }
                 TopTradingCycle::TokenReallocation {
-                    newOwner: new_owner,
+                    newOwner: *new_owner,
                     tokenId: token_id,
                 }
             })
@@ -468,65 +456,78 @@ impl Prover {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use proptest::{
-        arbitrary::Arbitrary,
-        strategy::{Strategy, ValueTree},
-        test_runner::TestRunner,
+fn make_actors_data(cli_args: &CliArgs, prefs: Preferences<U256>) -> Vec<ActorData> {
+    let n = prefs.prefs.len();
+    let wallets: Vec<PrivateKeySigner> = (0..n)
+        .map(|_| PrivateKeySigner::random().with_chain_id(Some(cli_args.chain_id)))
+        .collect();
+    wallets
+        .iter()
+        .zip(prefs.prefs)
+        .map(|(wallet, (token_id, ps))| ActorData {
+            wallet: wallet.clone(),
+            token_id,
+            preferences: ps.clone(),
+        })
+        .collect()
+}
+
+async fn run_test_case(cli_args: CliArgs, p: Preferences<U256>) -> Result<()> {
+    eprintln!("Setting up test environment for {} actors", p.prefs.len());
+    let actors = make_actors_data(&cli_args, p);
+    let setup = TestSetup::new(cli_args, actors).await?;
+    eprintln!("Depositing tokens to contract");
+    setup.deposit_tokens().await?;
+    eprintln!("Declaring preferences in contract");
+    setup.set_preferences().await?;
+    eprintln!("Computing the reallocation");
+    let reallocs = {
+        let prover = Prover::new(&setup);
+        let prefs = prover.fetch_preferences().await?;
+        let owner_dict = Prover::build_owner_dict(&prefs);
+        prover.reallocate(owner_dict, prefs)
     };
-    use risc0_steel::alloy::signers::Signer; // Add this import
+    setup.reallocate(&reallocs).await?;
+    eprintln!("Withdrawing tokens from contract back to owners");
+    let trade_results = results(&setup.actors, &reallocs);
+    setup.withraw(&trade_results).await?;
+    Ok(())
+}
 
-    fn make_actors_data(prefs: Preferences<U256>) -> Vec<ActorData> {
-        let n = prefs.prefs.len();
-        let wallets: Vec<PrivateKeySigner> = (0..n)
-            .map(|_| PrivateKeySigner::random().with_chain_id(Some(ANVIL_CHAIN_ID)))
-            .collect();
-        wallets
-            .iter()
-            .zip(prefs.prefs)
-            .map(|(wallet, (token_id, ps))| ActorData {
-                wallet: wallet.clone(),
-                token_id,
-                preferences: ps.clone(),
-            })
-            .collect()
-    }
+#[derive(Clone, Parser)]
+#[command(author, version, about, long_about = None)]
+struct CliArgs {
+    /// RPC Node URL
+    #[arg(long, default_value = "http://localhost:8545")]
+    node_url: String,
 
-    async fn run_test_case(p: Preferences<U256>) -> Result<()> {
-        eprintln!("Setting up test environment for {} actors", p.prefs.len());
-        let actors = make_actors_data(p);
-        let owner = PrivateKeySigner::from_str(ANVIL_PRIVATE_KEYS[0])?;
-        let setup = TestSetup::new(owner, actors).await?;
-        eprintln!("Depositing tokens to contract");
-        setup.deposit_tokens().await?;
-        eprintln!("Declaring preferences in contract");
-        setup.set_preferences().await?;
-        eprintln!("Computing the reallocation");
-        let reallocs = {
-            let prover = Prover::new(&setup);
-            let prefs = prover.fetch_preferences().await?;
-            let owner_dict = Prover::build_owner_dict(&prefs);
-            prover.reallocate(owner_dict, prefs)
-        };
-        setup.reallocate(&reallocs).await?;
-        eprintln!("Withdrawing tokens from contract back to owners");
-        let trade_results = results(&setup.actors, &reallocs);
-        setup.withraw(&trade_results).await?;
-        Ok(())
-    }
+    /// Maximum gas limit for transactions
+    #[arg(long, default_value_t = 1_000_000u64)]
+    max_gas: u64,
 
-    #[cfg(feature = "node_test")]
-    #[tokio::test]
-    async fn test_ttc_flow() -> Result<()> {
-        let test_case = {
-            let mut runner = TestRunner::default();
-            let strategy = (Preferences::<u64>::arbitrary_with(Some(2..=20)))
-                .prop_map(|prefs| prefs.map(U256::from));
-            strategy.new_tree(&mut runner).unwrap().current()
-        };
-        run_test_case(test_case).await?;
-        Ok(())
-    }
+    /// Chain ID
+    #[arg(long)]
+    chain_id: u64,
+
+    /// Initial ETH balance for new accounts
+    #[arg(long, default_value = "5")]
+    initial_balance: String,
+
+    /// Owner private key (with or without 0x prefix)
+    #[arg(long)]
+    owner_key: String,
+}
+
+#[tokio::main]
+async fn main() -> Result<()> {
+    let cli = CliArgs::parse();
+
+    let test_case = {
+        let mut runner = TestRunner::default();
+        let strategy = (Preferences::<u64>::arbitrary_with(Some(2..=20)))
+            .prop_map(|prefs| prefs.map(U256::from));
+        strategy.new_tree(&mut runner).unwrap().current()
+    };
+    run_test_case(cli, test_case).await?;
+    Ok(())
 }
