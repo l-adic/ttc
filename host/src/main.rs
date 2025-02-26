@@ -191,7 +191,8 @@ async fn create_actors(
         })
         .collect();
 
-    futures::future::try_join_all(futures).await
+    let res = futures::future::try_join_all(futures).await?;
+    Ok(res)
 }
 
 impl TestSetup {
