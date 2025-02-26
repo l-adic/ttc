@@ -4,12 +4,13 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+clap = { version = "4.4", features = ["derive"] }
+tokio = { version = "1.35", features = ["full"] }
+futures = "0.3"
+url = { version = "2.5" }
+
 anyhow.workspace = true
-clap.workspace = true
-futures.workspace = true
 proptest.workspace = true
 risc0-steel.workspace = true
 ttc = { workspace = true, features = ["test"] }
 contract.workspace = true
-tokio.workspace = true
-url.workspace = true

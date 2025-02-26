@@ -4,7 +4,7 @@ use contract::{
     nft::TestNFT,
     ttc::TopTradingCycle::{self},
 };
-use host::{Prover, ProverConfig, create_provider};
+use host::{create_provider, Prover, ProverConfig};
 use proptest::{
     arbitrary::Arbitrary,
     strategy::{Strategy, ValueTree},
@@ -12,7 +12,7 @@ use proptest::{
 };
 use risc0_steel::alloy::{primitives::Bytes, signers::Signer, sol_types::SolValue};
 use risc0_steel::alloy::{
-    primitives::{Address, U256, utils::parse_ether},
+    primitives::{utils::parse_ether, Address, U256},
     providers::Provider,
     signers::local::PrivateKeySigner,
 };

@@ -1,1 +1,4 @@
 target
+contract/src/Elf.sol
+contract/src/ImageID.sol
+
