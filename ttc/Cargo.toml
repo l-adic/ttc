@@ -1,18 +1,18 @@
 [package]
 name = "ttc"
-version = "0.1.0"
-edition = "2021"
+version = { workspace = true }
+edition = { workspace = true }
 
 [lib]
 path = "src/lib.rs"
 
 [dependencies]
-petgraph = { version = "0.7.1", default-features = false }
-proptest = "1.6.0"
-thiserror = "1.0"
+petgraph.workspace = true
+proptest = { workspace = true, optional = true }
+thiserror.workspace = true
 
 [dev-dependencies]
-itertools = "0.14.0"
+itertools.workspace = true
 
 [features]
-test = []
+test = ["proptest"]

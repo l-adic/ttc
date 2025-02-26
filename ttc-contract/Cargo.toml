@@ -1,18 +1,19 @@
 [package]
 name = "ttc-contract"
-version = "0.1.0"
-edition = "2024"
+version = { workspace = true }
+edition = { workspace = true }
 
 [dependencies]
-ethers = "2.0"
-serde = "1.0"
+risc0-steel = { workspace = true, features = ["host"]}
 
 [dev-dependencies]
-eyre = "0.6"
-futures = "0.3"
-proptest = "1.6.0"
-tokio = { version = "1.0", features = ["full"] }
-ttc = {path = "../ttc", features = ["test"] }
+anyhow.workspace = true
+futures.workspace = true
+proptest.workspace = true
+risc0-steel.workspace = true
+ttc = { workspace = true, features = ["test"] }
+tokio.workspace = true
+url.workspace = true
 
 [features]
 node_test = []

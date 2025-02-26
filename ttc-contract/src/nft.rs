@@ -1,7 +1,7 @@
-use ethers::contract::abigen;
+use risc0_steel::alloy::sol;
 
-abigen!(
+sol!(
+    #[sol(rpc, all_derives)]
     TestNFT,
-    "./out/TestNFT.sol/TestNFT.json",
-    event_derives(serde::Serialize, serde::Deserialize)
+    "./out/TestNFT.sol/TestNFT.json"
 );

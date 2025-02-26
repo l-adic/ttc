@@ -1,7 +1,13 @@
-use ethers::contract::abigen;
+use risc0_steel::alloy::sol;
 
-abigen!(
+sol!(
+    #[sol(rpc, all_derives)]
     TopTradingCycle,
-    "./out/TopTradingCycle.sol/TopTradingCycle.json",
-    event_derives(serde::Serialize, serde::Deserialize)
+    "./out/TopTradingCycle.sol/TopTradingCycle.json"
 );
+
+impl PartialEq for TopTradingCycle::TokenReallocation {
+    fn eq(&self, other: &Self) -> bool {
+        self.tokenId == other.tokenId && self.newOwner == other.newOwner
+    }
+}
