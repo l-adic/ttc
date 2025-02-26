@@ -18,15 +18,12 @@ help:
 
 # Build commands
 build:
-	cd ttc-contract && forge build
+	cd contract && forge build
 	cargo build --release --workspace
 
 # Test commands
 test:
 	cargo test --release --workspace
-
-test-contracts:
-	cargo test --release -p ttc-contract --features "node_test" test_ttc_flow -- --nocapture
 
 # Cleaning
 clean:

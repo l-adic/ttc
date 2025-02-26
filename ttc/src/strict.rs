@@ -1,7 +1,7 @@
 use petgraph::{
-    graph::{DiGraph, NodeIndex},
-    visit::{depth_first_search, Control, DfsEvent},
     Direction, Graph,
+    graph::{DiGraph, NodeIndex},
+    visit::{Control, DfsEvent, depth_first_search},
 };
 use std::{
     collections::HashMap,
