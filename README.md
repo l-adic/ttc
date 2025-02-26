@@ -26,5 +26,5 @@ You can deploy and run the test suite against a live set of contracts on this lo
 
 ```
 > make build
-> make test-contracts
+> cargo run -p host --release -- --chain-id 31337 --owner-key 0xac0974bec39a1800000000000000000000000000000000000000000000000000
 ```
