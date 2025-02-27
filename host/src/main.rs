@@ -1,9 +1,9 @@
 use anyhow::{Ok, Result};
 use clap::Parser;
 use contract::{
-    mock_verifier::MockVerifier,
     nft::TestNFT,
     ttc::TopTradingCycle::{self},
+    verifier::Verifier,
 };
 use host::{create_provider, Prover, ProverConfig};
 use proptest::{
@@ -201,7 +201,7 @@ impl TestSetup {
         eprintln!("Deploying NFT");
         let nft = *TestNFT::deploy(&provider).await?.address();
         eprintln!("Deploying Verifier");
-        let verifier = *MockVerifier::deploy(&provider).await?.address();
+        let verifier = *Verifier::deploy(&provider).await?.address();
         eprintln!("Deploying TTC");
         let ttc = *TopTradingCycle::deploy(&provider, nft, verifier)
             .await?
@@ -303,11 +303,11 @@ impl TestSetup {
     }
 
     // Call the solver and submit the reallocation data to the contract
-    async fn reallocate(&self, proof: TopTradingCycle::Journal) -> Result<()> {
+    async fn reallocate(&self, proof: TopTradingCycle::Journal, seal: Vec<u8>) -> Result<()> {
         let provider = create_provider(self.node_url.clone(), self.owner.clone());
         let ttc = TopTradingCycle::new(self.ttc, provider);
         let journal_data = Bytes::from(proof.abi_encode());
-        ttc.reallocateTokens(journal_data)
+        ttc.reallocateTokens(journal_data, Bytes::from(seal))
             .gas(self.config.max_gas)
             .send()
             .await?
@@ -402,17 +402,16 @@ async fn run_test_case(config: Config, p: Preferences<U256>) -> Result<()> {
     eprintln!("Declaring preferences in contract");
     setup.set_preferences().await?;
     eprintln!("Computing the reallocation");
-    let proof = {
+    let (proof, seal) = {
         let config = ProverConfig {
             node_url: setup.node_url.clone(),
             owner: setup.owner.clone(),
             ttc: setup.ttc,
         };
         let prover = Prover::new(&config);
-        let (proof, _) = prover.prove().await?;
-        Ok(proof)
+        prover.prove().await
     }?;
-    setup.reallocate(proof.clone()).await?;
+    setup.reallocate(proof.clone(), seal).await?;
     eprintln!("Withdrawing tokens from contract back to owners");
     let trade_results = results(&setup.actors, &proof.reallocations);
     setup.withraw(&trade_results).await?;

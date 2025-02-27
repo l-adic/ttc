@@ -236,16 +236,16 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
      * @param journalData bytes representing the abi encoded journal
      */
 
-    function reallocateTokens(bytes calldata journalData) external {
+    function reallocateTokens(bytes calldata journalData, bytes calldata seal) external {
 
          // Decode and validate the journal data
         Journal memory journal = parseJournal(journalData);
         require(journal.ttcContract == address(this), "Invalid token address");
-        // require(Steel.validateCommitment(journal.commitment), "Invalid commitment");
+        require(Steel.validateCommitment(journal.commitment), "Invalid commitment");
 
         // Verify the proof
-        //bytes32 journalHash = sha256(journalData);
-        //verifier.verify(seal, imageID, journalHash);
+        bytes32 journalHash = sha256(journalData);
+        verifier.verify(seal, imageID, journalHash);
 
         for (uint256 i = 0; i < journal.reallocations.length; i++) {
             TokenReallocation memory realloc = journal.reallocations[i];

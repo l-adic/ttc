@@ -34,7 +34,19 @@ sol!(
     "../../contract/out/TopTradingCycle.sol/TopTradingCycle.json"
 );
 
+use core::fmt;
+
+impl fmt::Debug for TopTradingCycle::TokenReallocation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("TokenReallocation")
+            .field("tokenId", &self.tokenId)
+            .field("newOwner", &self.newOwner)
+            .finish()
+    }
+}
+
 sol! {
+    #[derive(Debug)]
     struct Journal {
         Commitment commitment;
         address ttcContract;
@@ -122,5 +134,7 @@ fn main() {
         ttcContract: contract,
         reallocations,
     };
+
+    eprintln!("Writing the Journal {:?}", journal);
     env::commit_slice(&journal.abi_encode());
 }
