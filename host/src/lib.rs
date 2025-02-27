@@ -24,9 +24,9 @@ pub fn create_provider(
 ) -> impl Provider<Http<Client>, Ethereum> {
     let wallet = EthereumWallet::from(signer);
     ProviderBuilder::new()
-       .with_recommended_fillers()  // Add recommended fillers for nonce, gas, etc.
-      .wallet(wallet)
-      .on_http(node_url)
+        .with_recommended_fillers() // Add recommended fillers for nonce, gas, etc.
+        .wallet(wallet)
+        .on_http(node_url)
 }
 
 pub struct Prover {
@@ -73,7 +73,6 @@ impl Prover {
         let encoded_preferences = preferences._0.abi_encode();
         let evm_input = env.into_input().await?;
 
-
         println!("Running the guest with the constructed input:");
         let ttc = self.ttc.clone();
         let prove_info = tokio::task::spawn_blocking(move || {
@@ -97,9 +96,9 @@ impl Prover {
         let receipt = prove_info.receipt;
         let journal = &receipt.journal.bytes;
 
-        // Decode and log the commitment
-        let journal =
-            TopTradingCycle::Journal::abi_decode(journal, true).context("invalid journal")?;
+        // HOLD ONTO YOUR BUTTS, this Journal type better match the one in guest!
+        let journal = TopTradingCycle::Journal::abi_decode(&journal, true)
+            .context("Shared journal doesn't match contract journal")?;
 
         // ABI encode the seal.
         let seal = encode_seal(&receipt).context("invalid receipt")?;

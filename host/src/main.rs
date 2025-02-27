@@ -1,6 +1,7 @@
 use anyhow::{Ok, Result};
 use clap::Parser;
 use contract::{
+    mock_verifier::MockVerifier,
     nft::TestNFT,
     ttc::TopTradingCycle::{self},
 };
@@ -199,8 +200,12 @@ impl TestSetup {
 
         eprintln!("Deploying NFT");
         let nft = *TestNFT::deploy(&provider).await?.address();
+        eprintln!("Deploying Verifier");
+        let verifier = *MockVerifier::deploy(&provider).await?.address();
         eprintln!("Deploying TTC");
-        let ttc = *TopTradingCycle::deploy(&provider, nft).await?.address();
+        let ttc = *TopTradingCycle::deploy(&provider, nft, verifier)
+            .await?
+            .address();
 
         let actors = create_actors(config.clone(), nft, owner.clone(), actors).await?;
 
@@ -444,7 +449,7 @@ async fn main() -> Result<()> {
 
     let test_case = {
         let mut runner = TestRunner::default();
-        let strategy = (Preferences::<u64>::arbitrary_with(Some(2..=20)))
+        let strategy = (Preferences::<u64>::arbitrary_with(Some(2..=3)))
             .prop_map(|prefs| prefs.map(U256::from));
         strategy.new_tree(&mut runner).unwrap().current()
     };

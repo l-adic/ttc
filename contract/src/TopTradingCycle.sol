@@ -15,6 +15,9 @@ import {ImageID} from "./ImageID.sol";
  * @dev Contract for managing NFT custody and transfers in a top trading cycle
  */
 contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
+    bytes32 public constant imageID = ImageID.PROVABLE_TTC_ID;
+
+    IRiscZeroVerifier public immutable verifier;
 
     // The ERC721 contract this TTC operates on
     IERC721 public immutable nftContract;
@@ -47,10 +50,13 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
     /**
      * @dev Constructor sets the NFT contract address
      * @param _nftContract Address of the ERC721 contract
+     * @param _nftContract Address of the Verifier contract
      */
-    constructor(address _nftContract) Ownable(msg.sender) {
+    constructor(address _nftContract, IRiscZeroVerifier _verifier) Ownable(msg.sender) {
         require(_nftContract != address(0), "Invalid NFT contract address");
+        require(address(_verifier) != address(0), "Invalid Verifier contract address");
         nftContract = IERC721(_nftContract);
+        verifier = _verifier;
     }
 
     /**
@@ -238,8 +244,8 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
         // require(Steel.validateCommitment(journal.commitment), "Invalid commitment");
 
         // Verify the proof
-        // bytes32 journalHash = sha256(journalData);
-        // verifier.verify(seal, imageID, journalHash);
+        //bytes32 journalHash = sha256(journalData);
+        //verifier.verify(seal, imageID, journalHash);
 
         for (uint256 i = 0; i < journal.reallocations.length; i++) {
             TokenReallocation memory realloc = journal.reallocations[i];

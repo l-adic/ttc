@@ -42,7 +42,6 @@ sol! {
     }
 }
 
-
 fn build_owner_dict(prefs: &[TopTradingCycle::TokenPreferences]) -> HashMap<U256, Address> {
     prefs
         .iter()
