@@ -5,3 +5,9 @@ sol!(
     Verifier,
     "./out/Verifier.sol/Verifier.json"
 );
+
+sol! {
+    #[sol(rpc, all_derives)]
+    MockVerifier,
+    "./out/MockVerifier.sol/MockVerifier.json"
+}
