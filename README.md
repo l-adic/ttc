@@ -16,15 +16,4 @@ The [wikipedia article](https://en.wikipedia.org/wiki/Top_trading_cycle) does a 
 
 ## Test against local node
 
-Assuming you have [foundry](https://github.com/foundry-rs/foundry?tab=readme-ov-file#installation) installed, start a local node in the background:
-
-```
-> anvil
-```
-
-You can deploy and run the test suite against a live set of contracts on this local node:
-
-```
-> make build
-> cargo run -p host --release -- --chain-id 31337 --owner-key 0xac0974bec39a1800000000000000000000000000000000000000000000000000
-```
+See the [node_test](https://github.com/l-adic/ttc/blob/main/.github/workflows/node_test.yml) workflow for how you would set these up and run locally.
