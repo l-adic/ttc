@@ -1,18 +1,31 @@
-use anyhow::{Ok, Result};
+use anyhow::{Context, Ok, Result};
 use contract::ttc::TopTradingCycle;
-use risc0_steel::alloy::{
-    network::EthereumWallet,
-    primitives::{Address, U256},
-    providers::{Provider, ProviderBuilder},
-    signers::local::PrivateKeySigner,
+use risc0_ethereum_contracts::encode_seal;
+use risc0_steel::{
+    alloy::{
+        network::{Ethereum, EthereumWallet},
+        primitives::Address,
+        providers::{Provider, ProviderBuilder},
+        signers::local::PrivateKeySigner,
+        sol_types::SolValue,
+        transports::http::{Client, Http},
+    },
+    ethereum::{EthEvmEnv, ETH_SEPOLIA_CHAIN_SPEC},
 };
-use std::collections::HashMap;
-use ttc::strict::{self, Preferences};
+use risc0_zkvm::{default_prover, ExecutorEnv, ProverOpts, VerifierContext};
+use tracing::{info, instrument};
+use ttc_methods::PROVABLE_TTC_ELF;
 use url::Url;
 
-pub fn create_provider(node_url: Url, signer: PrivateKeySigner) -> impl Provider {
+pub fn create_provider(
+    node_url: Url,
+    signer: PrivateKeySigner,
+) -> impl Provider<Http<Client>, Ethereum> {
     let wallet = EthereumWallet::from(signer);
-    ProviderBuilder::new().wallet(wallet).on_http(node_url)
+    ProviderBuilder::new()
+        .with_recommended_fillers() // Add recommended fillers for nonce, gas, etc.
+        .wallet(wallet)
+        .on_http(node_url)
 }
 
 pub struct Prover {
@@ -36,6 +49,7 @@ impl Prover {
         }
     }
 
+    #[instrument(skip_all, level = "info")]
     pub async fn fetch_preferences(&self) -> Result<Vec<TopTradingCycle::TokenPreferences>> {
         let provider = create_provider(self.node_url.clone(), self.wallet.clone());
         let ttc = TopTradingCycle::new(self.ttc, provider);
@@ -43,7 +57,58 @@ impl Prover {
         Ok(res)
     }
 
-    pub fn prove(&self, prefs: Vec<TopTradingCycle::TokenPreferences>) -> TopTradingCycle::Journal {
+    #[instrument(skip_all, level = "info")]
+    pub async fn prove(&self) -> Result<(TopTradingCycle::Journal, Vec<u8>)> {
+        let mut env = EthEvmEnv::builder()
+            .rpc(self.node_url.clone())
+            .build()
+            .await?;
+
+        //  The `with_chain_spec` method is used to specify the chain configuration.
+        env = env.with_chain_spec(&ETH_SEPOLIA_CHAIN_SPEC);
+
+        let mut contract = risc0_steel::Contract::preflight(self.ttc, &mut env);
+        contract
+            .call_builder(&TopTradingCycle::getAllTokenPreferencesCall {})
+            .call()
+            .await?;
+
+        let evm_input = env.into_input().await?;
+
+        info!("Running the guest with the constructed input:");
+        let ttc = self.ttc;
+        let prove_info = tokio::task::spawn_blocking(move || {
+            let env = ExecutorEnv::builder()
+                .write(&evm_input)?
+                .write(&ttc)?
+                .build()
+                .unwrap();
+
+            default_prover().prove_with_ctx(
+                env,
+                &VerifierContext::default(),
+                PROVABLE_TTC_ELF,
+                &ProverOpts::groth16(),
+            )
+        })
+        .await?
+        .context("failed to create proof")?;
+
+        let receipt = prove_info.receipt;
+        let journal = &receipt.journal.bytes;
+
+        // HOLD ONTO YOUR BUTTS, this Journal type better match the one in guest!
+        let journal = TopTradingCycle::Journal::abi_decode(journal, true)
+            .context("Shared journal doesn't match contract journal")?;
+
+        // ABI encode the seal.
+        let seal = encode_seal(&receipt).context("invalid receipt")?;
+
+        Ok((journal, seal))
+    }
+
+    /*
+    pub fn prove_normal(&self, prefs: Vec<TopTradingCycle::TokenPreferences>) -> TopTradingCycle::Journal {
         let depositor_address_from_token_id = Self::build_owner_dict(&prefs);
         let rallocs = self.reallocate(depositor_address_from_token_id, prefs);
         TopTradingCycle::Journal {
@@ -89,7 +154,7 @@ impl Prover {
                 let new_owner = depositor_address_from_token_id.get(&new_owner).unwrap();
                 let old_owner = depositor_address_from_token_id.get(&token_id).unwrap();
                 if new_owner != old_owner {
-                    eprintln!(
+                    info!(
                         "A trade happened! {} just got token {}",
                         new_owner, token_id
                     );
@@ -101,4 +166,5 @@ impl Prover {
             })
             .collect()
     }
+    */
 }

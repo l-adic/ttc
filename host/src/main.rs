@@ -3,8 +3,9 @@ use clap::Parser;
 use contract::{
     nft::TestNFT,
     ttc::TopTradingCycle::{self},
+    verifier::Verifier,
 };
-use host::{Prover, ProverConfig, create_provider};
+use host::{create_provider, Prover, ProverConfig};
 use proptest::{
     arbitrary::Arbitrary,
     strategy::{Strategy, ValueTree},
@@ -12,11 +13,17 @@ use proptest::{
 };
 use risc0_steel::alloy::{primitives::Bytes, signers::Signer, sol_types::SolValue};
 use risc0_steel::alloy::{
-    primitives::{Address, U256, utils::parse_ether},
+    primitives::{utils::parse_ether, Address, U256},
     providers::Provider,
     signers::local::PrivateKeySigner,
 };
 use std::str::FromStr;
+use time::macros::format_description;
+use tracing::{info, instrument};
+use tracing_subscriber::{
+    fmt::{format::FmtSpan, time::UtcTime},
+    EnvFilter,
+};
 use ttc::strict::Preferences;
 use url::Url;
 
@@ -26,6 +33,7 @@ use url::Url;
 mod actor {
     use super::*;
     use risc0_steel::alloy::{network::TransactionBuilder, rpc::types::TransactionRequest};
+    use tracing::info;
 
     #[derive(Debug, Clone)]
     pub struct ActorData {
@@ -71,7 +79,7 @@ mod actor {
         ) -> Result<Self> {
             let provider = create_provider(config.node_url.clone(), owner.clone());
 
-            eprintln!("Fauceting account for {}", data.wallet.address());
+            info!("Fauceting account for {}", data.wallet.address());
             let pending_faucet_tx = {
                 let faucet_tx = TransactionRequest::default()
                     .to(data.wallet.address())
@@ -82,7 +90,7 @@ mod actor {
                 provider.send_transaction(faucet_tx).await?.watch()
             };
 
-            eprintln!(
+            info!(
                 "Assigning token {} to {}",
                 data.token_id,
                 data.wallet.address()
@@ -197,10 +205,14 @@ impl TestSetup {
 
         let provider = create_provider(config.node_url.clone(), owner.clone());
 
-        eprintln!("Deploying NFT");
+        info!("Deploying NFT");
         let nft = *TestNFT::deploy(&provider).await?.address();
-        eprintln!("Deploying TTC");
-        let ttc = *TopTradingCycle::deploy(&provider, nft).await?.address();
+        info!("Deploying Verifier");
+        let verifier = *Verifier::deploy(&provider).await?.address();
+        info!("Deploying TTC");
+        let ttc = *TopTradingCycle::deploy(&provider, nft, verifier)
+            .await?
+            .address();
 
         let actors = create_actors(config.clone(), nft, owner.clone(), actors).await?;
 
@@ -283,7 +295,7 @@ impl TestSetup {
                         actor.preferences(),
                         "Preferences not set correctly in contract!"
                     );
-                    eprintln!(
+                    info!(
                         "User {} set preferences as {:?}",
                         actor.token_id(),
                         actor.preferences()
@@ -298,11 +310,11 @@ impl TestSetup {
     }
 
     // Call the solver and submit the reallocation data to the contract
-    async fn reallocate(&self, proof: TopTradingCycle::Journal) -> Result<()> {
+    async fn reallocate(&self, proof: TopTradingCycle::Journal, seal: Vec<u8>) -> Result<()> {
         let provider = create_provider(self.node_url.clone(), self.owner.clone());
         let ttc = TopTradingCycle::new(self.ttc, provider);
         let journal_data = Bytes::from(proof.abi_encode());
-        ttc.reallocateTokens(journal_data)
+        ttc.reallocateTokens(journal_data, Bytes::from(seal))
             .gas(self.config.max_gas)
             .send()
             .await?
@@ -313,7 +325,7 @@ impl TestSetup {
 
     // All of the actors withdraw their tokens, assert that they are getting the right ones!
     async fn withraw(&self, trade_results: &TradeResults) -> Result<()> {
-        eprintln!("assert that the stable actors kept their tokens");
+        info!("assert that the stable actors kept their tokens");
         {
             let stable_verification_futures = trade_results
                 .stable
@@ -340,7 +352,7 @@ impl TestSetup {
             futures::future::try_join_all(stable_verification_futures).await?;
         }
 
-        eprintln!("assert that the trading actors get their new tokens");
+        info!("assert that the trading actors get their new tokens");
         {
             let stable_verification_futures = trade_results
                 .traders
@@ -388,30 +400,48 @@ fn make_actors_data(config: &Config, prefs: Preferences<U256>) -> Vec<ActorData>
         .collect()
 }
 
+#[instrument(skip_all, level = "info")]
 async fn run_test_case(config: Config, p: Preferences<U256>) -> Result<()> {
-    eprintln!("Setting up test environment for {} actors", p.prefs.len());
+    info!("Setting up test environment for {} actors", p.prefs.len());
     let actors = make_actors_data(&config, p);
     let setup = TestSetup::new(&config, actors).await?;
-    eprintln!("Depositing tokens to contract");
+    info!("Depositing tokens to contract");
     setup.deposit_tokens().await?;
-    eprintln!("Declaring preferences in contract");
+    info!("Declaring preferences in contract");
     setup.set_preferences().await?;
-    eprintln!("Computing the reallocation");
-    let proof = {
+    info!("Computing the reallocation");
+    let (proof, seal) = {
         let config = ProverConfig {
             node_url: setup.node_url.clone(),
             owner: setup.owner.clone(),
             ttc: setup.ttc,
         };
         let prover = Prover::new(&config);
-        let prefs = prover.fetch_preferences().await?;
-        prover.prove(prefs)
-    };
-    setup.reallocate(proof.clone()).await?;
-    eprintln!("Withdrawing tokens from contract back to owners");
+        prover.prove().await
+    }?;
+    setup.reallocate(proof.clone(), seal).await?;
+    info!("Withdrawing tokens from contract back to owners");
     let trade_results = results(&setup.actors, &proof.reallocations);
     setup.withraw(&trade_results).await?;
     Ok(())
+}
+
+pub fn init_console_subscriber() {
+    let timer = UtcTime::new(format_description!(
+        "[year]-[month]-[day]T[hour repr:24]:[minute]:[second].[subsecond digits:3]Z"
+    ));
+    tracing_subscriber::fmt()
+        .with_env_filter(EnvFilter::from_default_env())
+        .with_span_events(FmtSpan::CLOSE)
+        .with_timer(timer)
+        .with_target(true)
+        .with_thread_ids(false)
+        .with_line_number(false)
+        .with_file(false)
+        .with_level(true)
+        .with_ansi(true)
+        .with_writer(std::io::stdout)
+        .init();
 }
 
 #[derive(Clone, Parser)]
@@ -420,6 +450,9 @@ struct Config {
     /// RPC Node URL
     #[arg(long, default_value = "http://localhost:8545")]
     node_url: Url,
+
+    #[arg(long, default_value_t = 10)]
+    max_actors: usize,
 
     /// Maximum gas limit for transactions
     #[arg(long, default_value_t = 1_000_000u64)]
@@ -440,11 +473,12 @@ struct Config {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    init_console_subscriber();
     let cli = Config::parse();
 
     let test_case = {
         let mut runner = TestRunner::default();
-        let strategy = (Preferences::<u64>::arbitrary_with(Some(2..=20)))
+        let strategy = (Preferences::<u64>::arbitrary_with(Some(2..=cli.max_actors)))
             .prop_map(|prefs| prefs.map(U256::from));
         strategy.new_tree(&mut runner).unwrap().current()
     };

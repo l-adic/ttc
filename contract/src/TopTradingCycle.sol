@@ -5,9 +5,9 @@ import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-//import {IRiscZeroVerifier} from "risc0/IRiscZeroVerifier.sol";
-//import {Steel} from "risc0/steel/Steel.sol";
-//import {ImageID} from "./ImageID.sol";
+import {IRiscZeroVerifier} from "risc0/IRiscZeroVerifier.sol";
+import {Steel} from "risc0/steel/Steel.sol";
+import {ImageID} from "./ImageID.sol";
 
 
 /**
@@ -15,6 +15,9 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
  * @dev Contract for managing NFT custody and transfers in a top trading cycle
  */
 contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
+    bytes32 public constant imageID = ImageID.PROVABLE_TTC_ID;
+
+    IRiscZeroVerifier public immutable verifier;
 
     // The ERC721 contract this TTC operates on
     IERC721 public immutable nftContract;
@@ -47,10 +50,13 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
     /**
      * @dev Constructor sets the NFT contract address
      * @param _nftContract Address of the ERC721 contract
+     * @param _nftContract Address of the Verifier contract
      */
-    constructor(address _nftContract) Ownable(msg.sender) {
+    constructor(address _nftContract, IRiscZeroVerifier _verifier) Ownable(msg.sender) {
         require(_nftContract != address(0), "Invalid NFT contract address");
+        require(address(_verifier) != address(0), "Invalid Verifier contract address");
         nftContract = IERC721(_nftContract);
+        verifier = _verifier;
     }
 
     /**
@@ -200,6 +206,7 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
     }
 
     struct Journal {
+        Steel.Commitment commitment ;
         address ttcContract;
         TokenReallocation[] reallocations;
     }
@@ -229,16 +236,16 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
      * @param journalData bytes representing the abi encoded journal
      */
 
-    function reallocateTokens(bytes calldata journalData) external {
+    function reallocateTokens(bytes calldata journalData, bytes calldata seal) external {
 
          // Decode and validate the journal data
         Journal memory journal = parseJournal(journalData);
         require(journal.ttcContract == address(this), "Invalid token address");
-        // require(Steel.validateCommitment(journal.commitment), "Invalid commitment");
+        require(Steel.validateCommitment(journal.commitment), "Invalid commitment");
 
         // Verify the proof
-        // bytes32 journalHash = sha256(journalData);
-        // verifier.verify(seal, imageID, journalHash);
+        bytes32 journalHash = sha256(journalData);
+        verifier.verify(seal, imageID, journalHash);
 
         for (uint256 i = 0; i < journal.reallocations.length; i++) {
             TokenReallocation memory realloc = journal.reallocations[i];

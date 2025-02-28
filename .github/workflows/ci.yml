@@ -20,10 +20,14 @@ jobs:
       with:
         version: nightly
 
+    - name: Install RISC0
+      uses: ./.github/actions/install-risc0
+      with:
+        version: 1.2.4
+
     # Build contracts
     - name: Build contracts
-      working-directory: ./contract
-      run: forge build
+      run: make build-contracts
         
     - name: Run Tests
       run: make test

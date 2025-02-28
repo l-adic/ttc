@@ -3,6 +3,7 @@ src = "src"
 out = "out"
 libs = ["lib"]
 remappings = [
-    "@openzeppelin/contracts=lib/openzeppelin-contracts/contracts/",
+    "@openzeppelin/contracts=lib/risc0-ethereum/lib/openzeppelin-contracts/contracts/",
+    "openzeppelin/contracts=lib/risc0-ethereum/lib/openzeppelin-contracts/contracts/",
     "risc0=lib/risc0-ethereum/contracts/src"
 ]
