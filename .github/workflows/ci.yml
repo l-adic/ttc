@@ -22,8 +22,7 @@ jobs:
 
     # Build contracts
     - name: Build contracts
-      working-directory: ./contract
-      run: forge build
+      run: make build-contracts
         
     - name: Run Tests
       run: make test

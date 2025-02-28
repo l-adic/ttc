@@ -14,12 +14,13 @@ help:
 	@echo "  make fmt             - Format code"
 	@echo "  make check           - Run all checks (build, test, lint)"
 	@echo "  make all             - Build and test everything"
-	
 
-# Build commands
-build:
+build-contracts:
 	cd methods/guest && cargo build --release
 	cd contract && forge build
+
+# Build commands
+build: build-contracts
 	cargo build --release --workspace
 
 # Test commands
@@ -41,5 +42,5 @@ fmt:
 # Check everything
 check: fmt lint build test
 
-run-node-tests:
+run-node-tests: build
 	RUST_LOG=info RUST_BACKTRACE=1 cargo run -p host --release -- --max-actors 3 --chain-id 31337 --owner-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
