@@ -3,9 +3,9 @@ use clap::Parser;
 use contract::{
     nft::TestNFT,
     ttc::TopTradingCycle::{self},
-    verifier::Verifier,
+    verifier::{MockVerifier, Verifier},
 };
-use host::{create_provider, Prover, ProverConfig};
+use host::{create_provider, MockProver, Prover, ProverConfig};
 use proptest::{
     arbitrary::Arbitrary,
     strategy::{Strategy, ValueTree},
@@ -207,8 +207,13 @@ impl TestSetup {
 
         info!("Deploying NFT");
         let nft = *TestNFT::deploy(&provider).await?.address();
-        info!("Deploying Verifier");
-        let verifier = *Verifier::deploy(&provider).await?.address();
+        let verifier = if config.mock {
+            info!("Deploying MockVerifier");
+            *MockVerifier::deploy(&provider).await?.address()
+        } else {
+            info!("Deploying Groth16Verifier");
+            *Verifier::deploy(&provider).await?.address()
+        };
         info!("Deploying TTC");
         let ttc = *TopTradingCycle::deploy(&provider, nft, verifier)
             .await?
@@ -411,13 +416,21 @@ async fn run_test_case(config: Config, p: Preferences<U256>) -> Result<()> {
     setup.set_preferences().await?;
     info!("Computing the reallocation");
     let (proof, seal) = {
-        let config = ProverConfig {
+        let prover_config = ProverConfig {
             node_url: setup.node_url.clone(),
-            owner: setup.owner.clone(),
+            wallet: setup.owner.clone(),
             ttc: setup.ttc,
         };
-        let prover = Prover::new(&config);
-        prover.prove().await
+        if config.mock {
+            info!("Using mock prover");
+            let prover = MockProver::new(&prover_config);
+            let proof = prover.prove().await?;
+            Ok((proof, vec![]))
+        } else {
+            info!("Using real prover");
+            let prover = Prover::new(&prover_config);
+            prover.prove().await
+        }
     }?;
     setup.reallocate(proof.clone(), seal).await?;
     info!("Withdrawing tokens from contract back to owners");
@@ -450,6 +463,9 @@ struct Config {
     /// RPC Node URL
     #[arg(long, default_value = "http://localhost:8545")]
     node_url: Url,
+
+    #[arg(long, default_value_t = false)]
+    mock: bool,
 
     #[arg(long, default_value_t = 10)]
     max_actors: usize,

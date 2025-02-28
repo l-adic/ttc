@@ -1,10 +1,11 @@
 name: Node Tests
-
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  schedule:
+    - cron: '0 0 * * *'  # Run at midnight UTC every day
 
 jobs:
   node_tests:
@@ -13,18 +14,15 @@ jobs:
     
     steps:
     - uses: actions/checkout@v4
-
     # Install Foundry
     - name: Install Foundry
       uses: foundry-rs/foundry-toolchain@v1
       with:
         version: nightly
-
     - name: Install RISC0
       uses: ./.github/actions/install-risc0
       with:
         version: 1.2.4
-
     # Start Anvil in the background
     - name: Start Anvil Node
       run: anvil --block-time 10 &
@@ -32,11 +30,17 @@ jobs:
     # Install Rust
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
-
-    # Run the tests
-    - name: Run node tests
+      
+    # Run mock tests for regular pushes/PRs
+    - name: Run node tests with mocks
+      if: github.event_name != 'schedule'
+      run: make run-node-tests-mock
+      
+    # Run full tests for nightly builds
+    - name: Run full node tests
+      if: github.event_name == 'schedule'
       run: make run-node-tests
-
+      
     # Cleanup
     - name: Cleanup
       if: always()
