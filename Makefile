@@ -16,7 +16,7 @@ help:
 	@echo "  make all             - Build and test everything"
 
 build-contracts:
-	cd methods/guest && cargo build --release
+	cd methods/guest && cargo build -p ttc-guests --release
 	cd contract && forge build
 
 # Build commands
