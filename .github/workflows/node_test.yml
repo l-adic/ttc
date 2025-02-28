@@ -25,7 +25,7 @@ jobs:
         version: 1.2.4
     # Start Anvil in the background
     - name: Start Anvil Node
-      run: anvil --block-time 10 &
+      run: anvil &
       
     # Install Rust
     - name: Install Rust toolchain
