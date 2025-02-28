@@ -67,7 +67,7 @@ impl Prover {
         //  The `with_chain_spec` method is used to specify the chain configuration.
         env = env.with_chain_spec(&ETH_SEPOLIA_CHAIN_SPEC);
 
-        let mut contract = risc0_steel::Contract::preflight(self.ttc.clone(), &mut env);
+        let mut contract = risc0_steel::Contract::preflight(self.ttc, &mut env);
         contract
             .call_builder(&TopTradingCycle::getAllTokenPreferencesCall {})
             .call()
@@ -76,7 +76,7 @@ impl Prover {
         let evm_input = env.into_input().await?;
 
         info!("Running the guest with the constructed input:");
-        let ttc = self.ttc.clone();
+        let ttc = self.ttc;
         let prove_info = tokio::task::spawn_blocking(move || {
             let env = ExecutorEnv::builder()
                 .write(&evm_input)?
@@ -98,7 +98,7 @@ impl Prover {
         let journal = &receipt.journal.bytes;
 
         // HOLD ONTO YOUR BUTTS, this Journal type better match the one in guest!
-        let journal = TopTradingCycle::Journal::abi_decode(&journal, true)
+        let journal = TopTradingCycle::Journal::abi_decode(journal, true)
             .context("Shared journal doesn't match contract journal")?;
 
         // ABI encode the seal.

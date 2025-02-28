@@ -451,6 +451,9 @@ struct Config {
     #[arg(long, default_value = "http://localhost:8545")]
     node_url: Url,
 
+    #[arg(long, default_value_t = 10)]
+    max_actors: usize,
+
     /// Maximum gas limit for transactions
     #[arg(long, default_value_t = 1_000_000u64)]
     max_gas: u64,
@@ -475,7 +478,7 @@ async fn main() -> Result<()> {
 
     let test_case = {
         let mut runner = TestRunner::default();
-        let strategy = (Preferences::<u64>::arbitrary_with(Some(2..=3)))
+        let strategy = (Preferences::<u64>::arbitrary_with(Some(2..=cli.max_actors)))
             .prop_map(|prefs| prefs.map(U256::from));
         strategy.new_tree(&mut runner).unwrap().current()
     };

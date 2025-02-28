@@ -1,4 +1,4 @@
-.PHONY: build test clean lint fmt check all help
+.PHONY: build test clean lint fmt check all run-node-tests help
 
 # Default target
 all: build test
@@ -18,6 +18,7 @@ help:
 
 # Build commands
 build:
+	cd methods/guest && cargo build --release
 	cd contract && forge build
 	cargo build --release --workspace
 
@@ -31,7 +32,7 @@ clean:
 
 # Linting
 lint:
-	cargo clippy --workspace -- -D warnings
+	RISC0_SKIP_BUILD=1 cargo clippy --workspace -- -D warnings
 
 # Formatting
 fmt:
@@ -39,3 +40,6 @@ fmt:
 
 # Check everything
 check: fmt lint build test
+
+run-node-tests:
+	RUST_LOG=info RUST_BACKTRACE=1 cargo run -p host --release -- --max-actors 3 --chain-id 31337 --owner-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80

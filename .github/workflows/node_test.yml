@@ -22,21 +22,20 @@ jobs:
 
     # Start Anvil in the background
     - name: Start Anvil Node
-      run: anvil &
+      run: anvil --block-time 10 &
       
     # Install Rust
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
 
     # Build contracts
-    - name: Build contracts
-      working-directory: ./contract
-      run: forge build
+    - name: Build
+      run: make build
 
     # Run the tests
     - name: Run node tests
       run: |
-        cargo run -p host -- --chain-id 31337 --owner-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+        RUST_LOG=info RUST_BACKTRACE=1 cargo run -p host --release -- --chain-id 31337 --owner-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 
     # Cleanup
     - name: Cleanup
