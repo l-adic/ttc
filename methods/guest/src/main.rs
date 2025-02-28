@@ -29,21 +29,25 @@ risc0_zkvm::guest::entry!(main);
 
 
 sol!(
-    #[sol(all_derives)]
-    TopTradingCycle,
-    "../../contract/out/TopTradingCycle.sol/TopTradingCycle.json"
+    contract TopTradingCycle { 
+
+        #[derive(Debug, PartialEq)]
+        struct TokenPreferences {
+            address owner;
+            uint256 tokenId;
+            uint256[] preferences;
+        }
+
+        function getAllTokenPreferences() external view returns (TokenPreferences[] memory);
+
+        #[derive(Debug)]
+        struct TokenReallocation {
+            uint256 tokenId;
+            address newOwner;
+        }
+    }
 );
 
-use core::fmt;
-
-impl fmt::Debug for TopTradingCycle::TokenReallocation {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("TokenReallocation")
-            .field("tokenId", &self.tokenId)
-            .field("newOwner", &self.newOwner)
-            .finish()
-    }
-}
 
 sol! {
     #[derive(Debug)]

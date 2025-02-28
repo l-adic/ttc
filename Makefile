@@ -1,4 +1,4 @@
-.PHONY: build test clean lint fmt check all run-node-tests help
+.PHONY: build-guest build-contracts build test clean lint fmt check all run-node-tests help
 
 # Default target
 all: build test
@@ -15,8 +15,11 @@ help:
 	@echo "  make check           - Run all checks (build, test, lint)"
 	@echo "  make all             - Build and test everything"
 
-build-contracts:
+build-guest:
 	cd methods/guest && cargo build -p ttc-guests --release
+
+build-contracts: build-guest
+	cargo build -p ttc-methods --release
 	cd contract && forge build
 
 # Build commands

@@ -1,0 +1,24 @@
+name: 'Install RISC0 via rzup'
+description: 'Quickly installs RISC0 toolchain using rzup for Ubuntu runners'
+inputs:
+  version:
+    description: 'Version to install'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install rzup and RISC0 toolchain
+      shell: bash
+      run: |
+        # Install rzup
+        curl -L https://risczero.com/install | bash
+        
+        # Add rzup to PATH
+        export PATH="$HOME/.risc0/bin:$PATH"
+        echo "$HOME/.risc0/bin" >> $GITHUB_PATH
+        
+        # Install RISC0 toolchain using specific version
+        $HOME/.risc0/bin/rzup install
+        $HOME/.risc0/bin/rzup install cargo-risczero ${{ inputs.version }}
+        $HOME/.risc0/bin/rzup install r0vm ${{ inputs.version }}
