@@ -17,6 +17,9 @@ itertools = "0.14.0"
 petgraph = { version = "0.7.1", default-features = false }
 proptest = "1.6.0"
 thiserror = "2.0"
+time = { version = "0.3", features = ["macros"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = [ "ansi", "env-filter", "fmt", "time" ] }
 
 risc0-build = { version = "1.2", default-features = false }
 risc0-zkp =   { version = "1.2", default-features = false }

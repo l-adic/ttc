@@ -10,13 +10,14 @@ path = "src/main.rs"
 [workspace]
 
 [dependencies]
+alloy-primitives = { version = "0.8" }
+alloy-sol-types = { version = "0.8" , features = ["json"] }
+hashbrown = "0.14"
+
 risc0-steel = { git = "https://github.com/risc0/risc0-ethereum", tag = "v1.3.2", features = ["unstable-verifier"] }
 risc0-zkvm = { version = "1.2", default-features = false, features = ["std", "unstable"] }
 
 ttc = { path = "../../ttc" }
-hashbrown = "0.14"
-alloy-primitives = { version = "0.8" }
-alloy-sol-types = { version = "0.8" , features = ["json"] }
 
 
 [patch.crates-io]

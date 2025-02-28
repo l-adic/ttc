@@ -9,6 +9,7 @@ use std::{
     hash::Hash,
 };
 use thiserror::Error;
+use tracing::instrument;
 
 #[derive(Debug, Clone)]
 pub struct Cycle<V> {
@@ -184,6 +185,7 @@ where
     }
 
     /// https://www.cis.upenn.edu/~aaroth/courses/slides/agt17/lect11.pdf
+    #[instrument(skip_all, level = "info")]
     fn find_cycle(&self) -> Result<Cycle<V>, TTCError> {
         let mut predecessors = vec![NodeIndex::end(); self.graph.node_count()];
         let start = self.graph.node_indices().next();
@@ -213,6 +215,7 @@ where
         Ok(Cycle { values: cycle })
     }
 
+    #[instrument(skip_all, level = "info")]
     pub fn solve_preferences(&mut self) -> Result<Vec<Cycle<V>>, TTCError> {
         let mut res = Vec::new();
         while self.graph.node_count() > 0 {
