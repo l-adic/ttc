@@ -20,6 +20,11 @@ jobs:
       with:
         version: nightly
 
+    - name: Install RISC0
+      uses: ./.github/actions/install-risc0
+      with:
+        version: 1.2.4
+
     # Start Anvil in the background
     - name: Start Anvil Node
       run: anvil --block-time 10 &

@@ -20,6 +20,11 @@ jobs:
       with:
         version: nightly
 
+    - name: Install RISC0
+      uses: ./.github/actions/install-risc0
+      with:
+        version: 1.2.4
+
     # Build contracts
     - name: Build contracts
       run: make build-contracts
