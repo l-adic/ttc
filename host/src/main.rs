@@ -18,7 +18,7 @@ use risc0_steel::alloy::{
     providers::Provider,
     signers::local::PrivateKeySigner,
 };
-use std::{env, str::FromStr};
+use std::{env, str::FromStr, sync::Arc};
 use time::macros::format_description;
 use tracing::{info, instrument};
 use tracing_subscriber::{
@@ -33,21 +33,55 @@ use url::Url;
 // which prevents failures for dumb reasons.
 mod actor {
     use super::*;
-    use risc0_steel::alloy::{network::TransactionBuilder, rpc::types::TransactionRequest};
+    use risc0_steel::alloy::{
+        network::TransactionBuilder, primitives::B256, rpc::types::TransactionRequest,
+    };
     use tracing::info;
 
-    #[derive(Debug, Clone)]
+    #[derive(Clone)]
     pub struct ActorData {
         pub wallet: PrivateKeySigner,
-        pub token_id: U256,
-        pub preferences: Vec<U256>,
+        pub token: TopTradingCycle::Token,
+        pub preferences: Vec<B256>,
     }
 
-    #[derive(Debug, Clone, PartialEq)]
+    pub fn make_actors_data(
+        config: &Config,
+        nft: Address,
+        prefs: Preferences<U256>,
+    ) -> Vec<ActorData> {
+        let n = prefs.prefs.len();
+        let wallets: Vec<PrivateKeySigner> = (0..n)
+            .map(|_| PrivateKeySigner::random().with_chain_id(Some(config.chain_id)))
+            .collect();
+        wallets
+            .iter()
+            .zip(prefs.prefs)
+            .map(|(wallet, (token_id, ps))| ActorData {
+                wallet: wallet.clone(),
+                token: TopTradingCycle::Token {
+                    collection: nft,
+                    tokenId: token_id,
+                },
+                preferences: ps
+                    .into_iter()
+                    .map(|p| {
+                        TopTradingCycle::Token {
+                            collection: nft,
+                            tokenId: p,
+                        }
+                        .hash()
+                    })
+                    .collect(),
+            })
+            .collect()
+    }
+
+    #[derive(Clone, PartialEq)]
     pub struct Actor {
         wallet: PrivateKeySigner,
-        token_id: U256,
-        preferences: Vec<U256>,
+        token: TopTradingCycle::Token,
+        preferences: Vec<B256>,
     }
 
     impl Actor {
@@ -59,21 +93,21 @@ mod actor {
             self.wallet().address()
         }
 
-        pub fn token_id(&self) -> U256 {
-            self.token_id
+        pub fn token(&self) -> TopTradingCycle::Token {
+            self.token.clone()
         }
 
-        pub fn preferences(&self) -> Vec<U256> {
+        pub fn preferences(&self) -> Vec<B256> {
             self.preferences.clone()
         }
 
-        pub fn with_token_id(self, token_id: U256) -> Self {
-            Self { token_id, ..self }
+        pub fn with_token(self, token: TopTradingCycle::Token) -> Self {
+            Self { token, ..self }
         }
 
         pub async fn new(
             config: Config,
-            nft_address: Address,
+            ttc: Address,
             owner: PrivateKeySigner,
             data: ActorData,
             nonce: u64,
@@ -92,12 +126,13 @@ mod actor {
             };
 
             info!(
-                "Assigning token {} to {}",
-                data.token_id,
+                "Assigning token ({},{}) to {}",
+                data.token.collection,
+                data.token.tokenId,
                 data.wallet.address()
             );
-            let nft = TestNFT::new(nft_address, &provider);
-            nft.safeMint(data.wallet.address(), data.token_id)
+            let nft = TestNFT::new(data.token.collection, &provider);
+            nft.safeMint(data.wallet.address(), data.token.tokenId)
                 .gas(config.max_gas)
                 .nonce(nonce)
                 .send()
@@ -108,13 +143,19 @@ mod actor {
             pending_faucet_tx.await?;
 
             assert_eq!(
-                nft.ownerOf(data.token_id).call().await?._0,
+                nft.ownerOf(data.token.tokenId).call().await?._0,
                 data.wallet.address()
             );
 
+            {
+                let ttc = TopTradingCycle::new(ttc, &provider);
+                let contract_hash = ttc.getTokenHash(data.token.clone()).call().await?._0;
+                assert_eq!(contract_hash, data.token.hash());
+            }
+
             Ok(Self {
                 wallet: data.wallet,
-                token_id: data.token_id,
+                token: data.token,
                 preferences: data.preferences,
             })
         }
@@ -128,44 +169,9 @@ struct TradeResults {
     traders: Vec<Actor>,
 }
 
-fn results(
-    original: &[Actor],
-    reallocations: &[TopTradingCycle::TokenReallocation],
-) -> TradeResults {
-    // all the actors who kept their current coins
-    let stable: Vec<Actor> = {
-        original
-            .iter()
-            .filter(|a| {
-                reallocations.contains(&TopTradingCycle::TokenReallocation {
-                    tokenId: a.token_id(),
-                    newOwner: a.address(),
-                })
-            })
-            .cloned()
-            .collect::<Vec<_>>()
-    };
-    // all of the actors who made a trade
-    let traders: Vec<Actor> = reallocations
-        .iter()
-        .cloned()
-        .filter_map(|tr| {
-            original
-                .iter()
-                .filter(|a| !stable.contains(a))
-                .find(|a| a.address() == tr.newOwner)
-                .cloned()
-                .map(|a| (tr, a))
-        })
-        .map(|(tr, a)| a.with_token_id(tr.tokenId))
-        .collect();
-    TradeResults { stable, traders }
-}
-
 struct TestSetup {
     node_url: Url,
     config: Config,
-    nft: Address,
     ttc: Address,
     owner: PrivateKeySigner,
     actors: Vec<Actor>,
@@ -173,7 +179,7 @@ struct TestSetup {
 
 async fn create_actors(
     config: Config,
-    nft_address: Address,
+    ttc: Address,
     owner: PrivateKeySigner,
     actors: Vec<ActorData>,
 ) -> Result<Vec<Actor>> {
@@ -187,7 +193,7 @@ async fn create_actors(
         .map(|(i, actor_data)| {
             actor::Actor::new(
                 config.clone(),
-                nft_address,
+                ttc,
                 owner.clone(),
                 actor_data,
                 start_nonce + 2 * (i as u64), // there are 2 txs, a coin creation and a faucet
@@ -201,16 +207,18 @@ async fn create_actors(
 
 impl TestSetup {
     // Deploy the NFT and TTC contracts and construct the actors.
-    async fn new(config: &Config, actors: Vec<ActorData>) -> Result<Self> {
+    async fn new(config: &Config, prefs: Preferences<U256>) -> Result<Self> {
         let owner = PrivateKeySigner::from_str(config.owner_key.as_str())?;
         let provider = create_provider(config.node_url.clone(), owner.clone());
         let dev_mode = env::var("RISC0_DEV_MODE").is_ok();
         let Artifacts { ttc, nft } = deploy(provider, dev_mode).await?;
-        let actors = create_actors(config.clone(), nft, owner.clone(), actors).await?;
+        let actors = {
+            let ds = actor::make_actors_data(config, nft, prefs);
+            create_actors(config.clone(), ttc, owner.clone(), ds).await?
+        };
         Ok(Self {
             config: config.clone(),
             node_url: config.node_url.clone(),
-            nft,
             ttc,
             owner,
             actors,
@@ -224,9 +232,9 @@ impl TestSetup {
             .iter()
             .map(|actor| {
                 let provider = create_provider(self.node_url.clone(), actor.wallet());
-                let nft = TestNFT::new(self.nft, provider);
+                let nft = TestNFT::new(actor.token().collection, provider);
                 async move {
-                    nft.approve(self.ttc, actor.token_id())
+                    nft.approve(self.ttc, actor.token().tokenId)
                         .send()
                         .await?
                         .watch()
@@ -245,12 +253,21 @@ impl TestSetup {
                 let provider = create_provider(self.node_url.clone(), actor.wallet());
                 let ttc = TopTradingCycle::new(self.ttc, provider);
                 async move {
-                    ttc.depositNFT(actor.token_id())
-                        .send()
-                        .await?
-                        .watch()
-                        .await?;
-                    let token_owner = ttc.tokenOwners(actor.token_id()).call().await?._0;
+                    ttc.depositNFT(actor.token()).send().await?.watch().await?;
+                    let token = {
+                        let t1 = ttc
+                            .getTokenFromHash(actor.token().hash())
+                            .call()
+                            .await?
+                            .tokenData;
+                        assert_eq!(
+                            t1,
+                            actor.token(),
+                            "Token not deposited correctly in contract!"
+                        );
+                        Ok(t1)
+                    }?;
+                    let token_owner = ttc.tokenOwners(token.hash()).call().await?._0;
                     assert_eq!(
                         token_owner,
                         actor.address(),
@@ -274,13 +291,13 @@ impl TestSetup {
                 let provider = create_provider(self.node_url.clone(), actor.wallet());
                 let ttc = TopTradingCycle::new(self.ttc, provider);
                 async move {
-                    ttc.setPreferences(actor.token_id(), actor.preferences())
+                    ttc.setPreferences(actor.token().hash(), actor.preferences())
                         .gas(self.config.max_gas)
                         .send()
                         .await?
                         .watch()
                         .await?;
-                    let ps = ttc.getPreferences(actor.token_id()).call().await?._0;
+                    let ps = ttc.getPreferences(actor.token().hash()).call().await?._0;
                     assert_eq!(
                         ps,
                         actor.preferences(),
@@ -288,7 +305,7 @@ impl TestSetup {
                     );
                     info!(
                         "User {} set preferences as {:?}",
-                        actor.token_id(),
+                        actor.token(),
                         actor.preferences()
                     );
                     Ok(())
@@ -314,6 +331,51 @@ impl TestSetup {
         Ok(())
     }
 
+    async fn results(
+        &self,
+        original: &[Actor],
+        reallocations: &[TopTradingCycle::TokenReallocation],
+    ) -> Result<TradeResults> {
+        // all the actors who kept their current coins
+        let stable: Vec<Actor> = {
+            original
+                .iter()
+                .filter(|a| {
+                    reallocations.contains(&TopTradingCycle::TokenReallocation {
+                        tokenHash: a.token().hash(),
+                        newOwner: a.address(),
+                    })
+                })
+                .cloned()
+                .collect::<Vec<_>>()
+        };
+        let provider = create_provider(self.node_url.clone(), self.owner.clone());
+        let ttc = Arc::new(TopTradingCycle::new(self.ttc, provider));
+        // all of the actors who made a trade
+        let traders_futures = reallocations
+            .iter()
+            .cloned()
+            .filter_map(|tr| {
+                original
+                    .iter()
+                    .filter(|a| !stable.contains(a))
+                    .find(|a| a.address() == tr.newOwner)
+                    .cloned()
+                    .map(|a| (tr, a))
+            })
+            .map(|(tr, a)| {
+                let ttc = Arc::clone(&ttc); // Clone the Arc for each future
+                async move {
+                    let token = ttc.getTokenFromHash(tr.tokenHash).call().await?;
+                    Ok(a.with_token(token.tokenData))
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let traders: Vec<Actor> = futures::future::try_join_all(traders_futures).await?;
+        Ok(TradeResults { stable, traders })
+    }
+
     // All of the actors withdraw their tokens, assert that they are getting the right ones!
     async fn withraw(&self, trade_results: &TradeResults) -> Result<()> {
         info!("assert that the stable actors kept their tokens");
@@ -327,10 +389,10 @@ impl TestSetup {
                     async move {
                         eprintln!(
                             "Withdrawing token {} for {}",
-                            actor.token_id(),
+                            actor.token(),
                             actor.address()
                         );
-                        ttc.withdrawNFT(actor.token_id())
+                        ttc.withdrawNFT(actor.token().hash())
                             .send()
                             .await?
                             .watch()
@@ -354,10 +416,10 @@ impl TestSetup {
                     async move {
                         eprintln!(
                             "Withdrawing token {} for {}",
-                            actor.token_id(),
+                            actor.token(),
                             actor.address()
                         );
-                        ttc.withdrawNFT(actor.token_id())
+                        ttc.withdrawNFT(actor.token().hash())
                             .send()
                             .await?
                             .watch()
@@ -375,27 +437,10 @@ impl TestSetup {
     // assert that the traders got their new tokens
 }
 
-fn make_actors_data(config: &Config, prefs: Preferences<U256>) -> Vec<ActorData> {
-    let n = prefs.prefs.len();
-    let wallets: Vec<PrivateKeySigner> = (0..n)
-        .map(|_| PrivateKeySigner::random().with_chain_id(Some(config.chain_id)))
-        .collect();
-    wallets
-        .iter()
-        .zip(prefs.prefs)
-        .map(|(wallet, (token_id, ps))| ActorData {
-            wallet: wallet.clone(),
-            token_id,
-            preferences: ps.clone(),
-        })
-        .collect()
-}
-
 #[instrument(skip_all, level = "info")]
 async fn run_test_case(config: Config, p: Preferences<U256>) -> Result<()> {
-    info!("Setting up test environment for {} actors", p.prefs.len());
-    let actors = make_actors_data(&config, p);
-    let setup = TestSetup::new(&config, actors).await?;
+    //   info!("Setting up test environment for {} actors", p.prefs.len());
+    let setup = TestSetup::new(&config, p).await?;
     info!("Depositing tokens to contract");
     setup.deposit_tokens().await?;
     info!("Declaring preferences in contract");
@@ -412,7 +457,7 @@ async fn run_test_case(config: Config, p: Preferences<U256>) -> Result<()> {
     }?;
     setup.reallocate(proof.clone(), seal).await?;
     info!("Withdrawing tokens from contract back to owners");
-    let trade_results = results(&setup.actors, &proof.reallocations);
+    let trade_results = setup.results(&setup.actors, &proof.reallocations).await?;
     setup.withraw(&trade_results).await?;
     Ok(())
 }

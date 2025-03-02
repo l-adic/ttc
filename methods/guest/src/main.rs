@@ -15,7 +15,7 @@
 #![allow(unused_doc_comments)]
 #![no_main]
 
-use alloy_primitives::{Address, U256};
+use alloy_primitives::{Address, FixedBytes};
 use alloy_sol_types::{SolValue, sol};
 use risc0_steel::{
     ethereum::{EthEvmInput, ETH_SEPOLIA_CHAIN_SPEC},
@@ -34,18 +34,19 @@ sol!(
         #[derive(Debug, PartialEq)]
         struct TokenPreferences {
             address owner;
-            uint256 tokenId;
-            uint256[] preferences;
+            bytes32 token;
+            bytes32[] preferences;
         }
 
         function getAllTokenPreferences() external view returns (TokenPreferences[] memory);
 
         #[derive(Debug)]
         struct TokenReallocation {
-            uint256 tokenId;
+            bytes32 token;
             address newOwner;
         }
     }
+
 );
 
 
@@ -58,18 +59,18 @@ sol! {
     }
 }
 
-fn build_owner_dict(prefs: &[TopTradingCycle::TokenPreferences]) -> HashMap<U256, Address> {
+fn build_owner_dict(prefs: &[TopTradingCycle::TokenPreferences]) -> HashMap<FixedBytes<32>, Address> {
     prefs
         .iter()
         .cloned()
-        .map(|tp| (tp.tokenId, tp.owner))
+        .map(|tp| (tp.token, tp.owner))
         .collect()
 }
 
 // This function calls the solver and produces the data we need to
 // submit to the contract
 fn reallocate(
-    depositor_address_from_token_id: HashMap<U256, Address>,
+    depositor_address_from_token_id: HashMap<FixedBytes<32>, Address>,
     prefs: Vec<TopTradingCycle::TokenPreferences>,
 ) -> Vec<TopTradingCycle::TokenReallocation> {
     let prefs = {
@@ -77,10 +78,10 @@ fn reallocate(
             .into_iter()
             .map(
                 |TopTradingCycle::TokenPreferences {
-                     tokenId,
+                     token,
                      preferences,
                      ..
-                 }| { (tokenId, preferences) },
+                 }| { (token, preferences) },
             )
             .collect();
         Preferences::new(ps).unwrap()
@@ -90,14 +91,14 @@ fn reallocate(
     alloc
         .allocation
         .into_iter()
-        .map(|(new_owner, token_id)| {
+        .map(|(new_owner, token)| {
             let new_owner = depositor_address_from_token_id
                 .get(&new_owner)
                 .unwrap()
                 .clone();
             TopTradingCycle::TokenReallocation {
                 newOwner: new_owner,
-                tokenId: token_id,
+                token,
             }
         })
         .collect()

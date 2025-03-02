@@ -34,7 +34,7 @@ pub async fn deploy(
             info!("Deploying Groth16Verifier");
             *Verifier::deploy(&provider).await?.address()
         };
-        *TopTradingCycle::deploy(&provider, nft, verifier)
+        *TopTradingCycle::deploy(&provider, verifier)
             .await?
             .address()
     };
