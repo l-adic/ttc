@@ -1,4 +1,4 @@
-.PHONY: build-guest build-contracts build test clean lint fmt check all run-node-tests run-node-tests-mock help
+.PHONY: build-methods build-contracts build test clean lint fmt check all run-node-tests run-node-tests-mock help
 
 .DEFAULT_GOAL := help
 
@@ -11,10 +11,10 @@ help:
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  make %-20s - %s\n", $$1, $$2}'
 
 # Build commands
-build-guest: ## Build the RISC Zero guest program
-	cd methods/guest && cargo build -p ttc-guests --release
+build-methods: ## Build the RISC Zero guest program
+	cargo build -p methods --release
 
-build-contracts: build-guest ## Build smart contracts (requires guest)
+build-contracts: build-methods ## Build smart contracts (requires guest)
 	cd contract && forge build
 
 build: build-contracts ## Build all components (guests, contracts, host)

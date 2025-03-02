@@ -2314,6 +2314,7 @@ dependencies = [
  "anyhow",
  "clap",
  "futures",
+ "methods",
  "proptest",
  "risc0-ethereum-contracts",
  "risc0-steel",
@@ -2323,7 +2324,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber 0.3.19",
  "ttc",
- "ttc-methods",
  "url",
 ]
 
@@ -2888,6 +2888,16 @@ dependencies = [
  "log",
  "objc",
  "paste",
+]
+
+[[package]]
+name = "methods"
+version = "0.1.0"
+dependencies = [
+ "risc0-build",
+ "risc0-build-ethereum",
+ "risc0-zkp",
+ "risc0-zkvm",
 ]
 
 [[package]]
@@ -5149,16 +5159,6 @@ dependencies = [
  "proptest",
  "thiserror 2.0.11",
  "tracing",
-]
-
-[[package]]
-name = "ttc-methods"
-version = "0.1.0"
-dependencies = [
- "risc0-build",
- "risc0-build-ethereum",
- "risc0-zkp",
- "risc0-zkvm",
 ]
 
 [[package]]

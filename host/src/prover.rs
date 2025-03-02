@@ -1,5 +1,6 @@
 use crate::contract::ttc::TopTradingCycle;
 use anyhow::{Context, Ok, Result};
+use methods::PROVABLE_TTC_ELF;
 use risc0_ethereum_contracts::encode_seal;
 use risc0_steel::{
     alloy::{
@@ -14,7 +15,6 @@ use risc0_steel::{
 };
 use risc0_zkvm::{default_prover, ExecutorEnv, ProverOpts, VerifierContext};
 use tracing::{info, instrument};
-use ttc_methods::PROVABLE_TTC_ELF;
 use url::Url;
 
 pub fn create_provider(

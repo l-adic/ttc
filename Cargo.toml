@@ -29,5 +29,5 @@ risc0-build-ethereum = { git = "https://github.com/risc0/risc0-ethereum", tag = 
 risc0-ethereum-contracts = { git = "https://github.com/risc0/risc0-ethereum", tag = "v1.3.2" }
 
 ttc = { path = "ttc" }
-ttc-methods = {path = "methods" }
-ttc-host = {path = "host" }
+methods = {path = "methods" }
+host = {path = "host" }
