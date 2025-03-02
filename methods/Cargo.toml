@@ -1,5 +1,5 @@
 [package]
-name = "ttc-methods"
+name = "methods"
 version = { workspace = true }
 edition = { workspace = true }
 

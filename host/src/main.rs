@@ -1,11 +1,11 @@
 use anyhow::{Ok, Result};
 use clap::Parser;
-use contract::{
+use host::contract::{
     nft::TestNFT,
     ttc::TopTradingCycle::{self},
     verifier::{MockVerifier, Verifier},
 };
-use host::{create_provider, MockProver, Prover, ProverConfig};
+use host::prover::{create_provider, Prover, ProverConfig};
 use proptest::{
     arbitrary::Arbitrary,
     strategy::{Strategy, ValueTree},
@@ -17,7 +17,7 @@ use risc0_steel::alloy::{
     providers::Provider,
     signers::local::PrivateKeySigner,
 };
-use std::str::FromStr;
+use std::{env, str::FromStr};
 use time::macros::format_description;
 use tracing::{info, instrument};
 use tracing_subscriber::{
@@ -207,7 +207,7 @@ impl TestSetup {
 
         info!("Deploying NFT");
         let nft = *TestNFT::deploy(&provider).await?.address();
-        let verifier = if config.mock {
+        let verifier = if env::var("RISC0_DEV_MODE").is_ok() {
             info!("Deploying MockVerifier");
             *MockVerifier::deploy(&provider).await?.address()
         } else {
@@ -421,16 +421,8 @@ async fn run_test_case(config: Config, p: Preferences<U256>) -> Result<()> {
             wallet: setup.owner.clone(),
             ttc: setup.ttc,
         };
-        if config.mock {
-            info!("Using mock prover");
-            let prover = MockProver::new(&prover_config);
-            let proof = prover.prove().await?;
-            Ok((proof, vec![]))
-        } else {
-            info!("Using real prover");
-            let prover = Prover::new(&prover_config);
-            prover.prove().await
-        }
+        let prover = Prover::new(&prover_config);
+        prover.prove().await
     }?;
     setup.reallocate(proof.clone(), seal).await?;
     info!("Withdrawing tokens from contract back to owners");
@@ -463,9 +455,6 @@ struct Config {
     /// RPC Node URL
     #[arg(long, default_value = "http://localhost:8545")]
     node_url: Url,
-
-    #[arg(long, default_value_t = false)]
-    mock: bool,
 
     #[arg(long, default_value_t = 10)]
     max_actors: usize,
