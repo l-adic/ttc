@@ -1,9 +1,10 @@
 use anyhow::{Ok, Result};
 use clap::Parser;
 use host::contract::{
+    deploy,
     nft::TestNFT,
     ttc::TopTradingCycle::{self},
-    verifier::{MockVerifier, Verifier},
+    Artifacts,
 };
 use host::prover::{create_provider, Prover, ProverConfig};
 use proptest::{
@@ -202,25 +203,10 @@ impl TestSetup {
     // Deploy the NFT and TTC contracts and construct the actors.
     async fn new(config: &Config, actors: Vec<ActorData>) -> Result<Self> {
         let owner = PrivateKeySigner::from_str(config.owner_key.as_str())?;
-
         let provider = create_provider(config.node_url.clone(), owner.clone());
-
-        info!("Deploying NFT");
-        let nft = *TestNFT::deploy(&provider).await?.address();
-        let verifier = if env::var("RISC0_DEV_MODE").is_ok() {
-            info!("Deploying MockVerifier");
-            *MockVerifier::deploy(&provider).await?.address()
-        } else {
-            info!("Deploying Groth16Verifier");
-            *Verifier::deploy(&provider).await?.address()
-        };
-        info!("Deploying TTC");
-        let ttc = *TopTradingCycle::deploy(&provider, nft, verifier)
-            .await?
-            .address();
-
+        let dev_mode = env::var("RISC0_DEV_MODE").is_ok();
+        let Artifacts { ttc, nft } = deploy(provider, dev_mode).await?;
         let actors = create_actors(config.clone(), nft, owner.clone(), actors).await?;
-
         Ok(Self {
             config: config.clone(),
             node_url: config.node_url.clone(),
