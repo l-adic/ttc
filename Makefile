@@ -1,52 +1,52 @@
 .PHONY: build-guest build-contracts build test clean lint fmt check all run-node-tests run-node-tests-mock help
 
+.DEFAULT_GOAL := help
+
 # Default target
 all: build test
 
-# Help command
+# Generate help automatically from comments
 help:
 	@echo "Available commands:"
-	@echo "  make build           - Build all Rust crates"
-	@echo "  make test            - Run all tests"
-	@echo "  make test-contracts  - Build and test contracts against a local node"
-	@echo "  make clean           - Clean build artifacts"
-	@echo "  make lint            - Run linters"
-	@echo "  make fmt             - Format code"
-	@echo "  make check           - Run all checks (build, test, lint)"
-	@echo "  make all             - Build and test everything"
-
-build-guest:
-	cd methods/guest && cargo build -p ttc-guests --release
-
-build-contracts: build-guest
-	cargo build -p ttc-methods --release
-	cd contract && forge build
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  make %-20s - %s\n", $$1, $$2}'
 
 # Build commands
-build: build-contracts
+build-guest: ## Build the RISC Zero guest program
+	cd methods/guest && cargo build -p ttc-guests --release
+
+build-contracts: build-guest ## Build smart contracts (requires guest)
+	cd contract && forge build
+
+build: build-contracts ## Build all components (guests, contracts, host)
 	cargo build --release --workspace
 
 # Test commands
-test:
+test: build-contracts ## Run all test suites
 	cargo test --release --workspace
 
 # Cleaning
-clean:
+clean: ## Clean build artifacts
 	cargo clean
 
-# Linting
-lint:
+# Linting and formatting
+lint: ## Run code linters
 	RISC0_SKIP_BUILD=1 cargo clippy --workspace -- -D warnings
 
-# Formatting
-fmt:
+fmt: ## Format code
 	cargo fmt --all
 
 # Check everything
-check: fmt lint build test
+check: fmt lint build test ## Run all checks (format, lint, build, test)
 
-run-node-tests: build
-	RUST_LOG=info RUST_BACKTRACE=1 cargo run -p host --release -- --max-actors 3 --chain-id 31337 --owner-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+# Node tests
+run-node-tests: build ## Run node tests with real RISC0
+	RUST_LOG=info cargo run -p host --release -- \
+		--max-actors 3 \
+		--chain-id 31337 \
+		--owner-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 
-run-node-tests-mock: build
-	RUST_LOG=info RUST_BACKTRACE=1 cargo run -p host --release -- --mock --max-actors 20 --chain-id 31337 --owner-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+run-node-tests-mock: build ## Run node tests with mocked RISC0
+	RUST_LOG=info RISC0_DEV_MODE=true cargo run -p host --release -- \
+		--max-actors 20 \
+		--chain-id 31337 \
+		--owner-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80

@@ -1,7 +1,0 @@
-[package]
-name = "contract"
-version = { workspace = true }
-edition = { workspace = true }
-
-[dependencies]
-risc0-steel = { workspace = true, features = ["host"]}

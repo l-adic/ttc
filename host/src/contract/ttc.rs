@@ -3,7 +3,7 @@ use risc0_steel::alloy::sol;
 sol!(
     #[sol(rpc, all_derives)]
     TopTradingCycle,
-    "./out/TopTradingCycle.sol/TopTradingCycle.json"
+    "../contract/out/TopTradingCycle.sol/TopTradingCycle.json"
 );
 
 impl PartialEq for TopTradingCycle::TokenReallocation {

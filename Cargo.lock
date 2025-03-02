@@ -1474,13 +1474,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "contract"
-version = "0.1.0"
-dependencies = [
- "risc0-steel",
-]
-
-[[package]]
 name = "convert_case"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2320,7 +2313,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
- "contract",
  "futures",
  "proptest",
  "risc0-ethereum-contracts",
