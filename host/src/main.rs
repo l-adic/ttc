@@ -144,13 +144,18 @@ mod actor {
 
             assert_eq!(
                 nft.ownerOf(data.token.tokenId).call().await?._0,
-                data.wallet.address()
+                data.wallet.address(),
+                "The token is assigned to the wrong owner"
             );
 
             {
                 let ttc = TopTradingCycle::new(ttc, &provider);
                 let contract_hash = ttc.getTokenHash(data.token.clone()).call().await?._0;
-                assert_eq!(contract_hash, data.token.hash());
+                assert_eq!(
+                    contract_hash,
+                    data.token.hash(),
+                    "We are computing the tokenHash differently than the contract"
+                );
             }
 
             Ok(Self {
@@ -434,7 +439,6 @@ impl TestSetup {
 
         Ok(())
     }
-    // assert that the traders got their new tokens
 }
 
 #[instrument(skip_all, level = "info")]
