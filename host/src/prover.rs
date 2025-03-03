@@ -20,7 +20,7 @@ use url::Url;
 pub fn create_provider(
     node_url: Url,
     signer: PrivateKeySigner,
-) -> impl Provider<Http<Client>, Ethereum> {
+) -> impl Provider<Http<Client>, Ethereum> + Clone {
     let wallet = EthereumWallet::from(signer);
     ProviderBuilder::new()
         .with_recommended_fillers() // Add recommended fillers for nonce, gas, etc.

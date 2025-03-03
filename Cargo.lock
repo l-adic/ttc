@@ -2316,6 +2316,7 @@ dependencies = [
  "futures",
  "methods",
  "proptest",
+ "rand",
  "risc0-ethereum-contracts",
  "risc0-steel",
  "risc0-zkvm",

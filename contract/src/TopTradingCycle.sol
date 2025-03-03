@@ -303,16 +303,12 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
         }
     }
 
-    /**
-     * @dev Helper function to get token information from a hash
-     * @dev Helper function to get token information from a hash
-     * @param tokenHash The hash of the token
-     * @return tokenData The Token struct containing collection address and token ID
-     */
     function getTokenFromHash(bytes32 tokenHash) external view returns (Token memory tokenData) {
+        require(tokenOwners[tokenHash] != address(0), "Token hash not found");
         uint256 index = tokenHashToIndex[tokenHash];
-        require(index < depositedTokens.length, "Token not found");
+        require(index < depositedTokens.length, "Token index out of bounds");
         
         return depositedTokens[index];
     }
+
 }
