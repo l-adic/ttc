@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/token/ERC721/utils/ERC721Holder.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IRiscZeroVerifier} from "risc0/IRiscZeroVerifier.sol";
-import {Steel} from "risc0/steel/Steel.sol";
+import {Steel, Encoding} from "risc0/steel/Steel.sol";
 import {ImageID} from "./ImageID.sol";
 
 
@@ -19,6 +19,23 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
 
     IRiscZeroVerifier public immutable verifier;
     
+    // Phase management
+    enum Phase {
+        Deposit,
+        Rank,
+        Trade,
+        Withdraw,
+        Closed
+    }
+
+    Phase public currentPhase;
+    uint256 public phaseDuration;
+    uint256 public phaseStartTimestamp;
+    uint256 public tradeInitiatedAtBlock;
+
+    // Event for phase transitions
+    event PhaseChanged(Phase newPhase);
+
     // Struct to represent a token from any ERC721 collection
     struct Token {
         address collection;  // The ERC721 contract address
@@ -51,12 +68,58 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
     }
 
     /**
-     * @dev Constructor sets the verifier contract address
+     * @dev Constructor sets the verifier contract address and phase duration
      * @param _verifier Address of the Verifier contract
+     * @param _phaseDuration Duration of each phase in seconds
      */
-    constructor(IRiscZeroVerifier _verifier) Ownable(msg.sender) {
+    constructor(IRiscZeroVerifier _verifier, uint256 _phaseDuration) Ownable(msg.sender) {
         require(address(_verifier) != address(0), "Invalid Verifier address");
         verifier = _verifier;
+        phaseDuration = _phaseDuration;
+        currentPhase = Phase.Deposit;
+        phaseStartTimestamp = block.timestamp;
+    }
+
+    /**
+     * @dev Modifier to check if the current phase matches the required phase
+     * @param requiredPhase The phase in which the function is allowed to execute
+     */
+    modifier onlyInPhase(Phase requiredPhase) {
+        require(currentPhase == requiredPhase, "Not in the correct phase");
+        _;
+    }
+
+    /**
+     * @dev Advances to the next phase
+     * Duration check is only applied for Deposit->Rank and Rank->Trade transitions
+     * For Withdraw->Closed, all NFTs must be withdrawn
+     * @return The new current phase
+     */
+    function advancePhase() external returns (Phase) {
+        if (currentPhase == Phase.Deposit) {
+            // Check duration for Deposit -> Rank transition
+            require(block.timestamp >= phaseStartTimestamp + phaseDuration, "Deposit phase duration not yet passed");
+            currentPhase = Phase.Rank;
+        } else if (currentPhase == Phase.Rank) {
+            // Check duration for Rank -> Trade transition
+            require(block.timestamp >= phaseStartTimestamp + phaseDuration, "Rank phase duration not yet passed");
+            tradeInitiatedAtBlock = block.number;
+            currentPhase = Phase.Trade;
+        } else if (currentPhase == Phase.Trade) {
+            // No duration check for Trade -> Withdraw
+            require(block.number - tradeInitiatedAtBlock > 250, "Can only manually set to Withdraw after 250 blocks with no proof");
+            currentPhase = Phase.Withdraw;
+        } else if (currentPhase == Phase.Withdraw) {
+            // Check that all NFTs have been withdrawn
+            require(depositedTokens.length == 0, "Not all NFTs have been withdrawn");
+            payable(owner()).transfer(address(this).balance);
+            currentPhase = Phase.Closed;
+        }
+
+        phaseStartTimestamp = block.timestamp;
+        emit PhaseChanged(currentPhase);
+
+        return currentPhase;
     }
 
     /**
@@ -73,7 +136,7 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
      * @param token The Token struct containing collection address and tokenId
      * @return The token hash for the deposited token
      */
-    function depositNFT(Token calldata token) external nonReentrant returns (bytes32) {
+    function depositNFT(Token calldata token) external nonReentrant onlyInPhase(Phase.Deposit) returns (bytes32) {
         IERC721 nftContract = IERC721(token.collection);
         
         bytes32 tokenHash = getTokenHash(token);
@@ -96,7 +159,7 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
      * @dev Allows the current owner to withdraw their NFT
      * @param tokenHash The token hash
      */
-    function withdrawNFT(bytes32 tokenHash) external nonReentrant {
+    function withdrawNFT(bytes32 tokenHash) external nonReentrant onlyInPhase(Phase.Withdraw) {
         require(tokenOwners[tokenHash] == msg.sender, "Not token owner");
         
         // Get token data
@@ -131,18 +194,6 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
         
         // Transfer the NFT back to the owner
         IERC721(tokenData.collection).safeTransferFrom(address(this), msg.sender, tokenData.tokenId);
-    }
-
-    /**
-     * @dev Reset contract state by clearing all tracking data and preferences
-     * This should only be called when no NFTs remain in the contract
-     */
-    function cleanup() external onlyOwner {
-        // Verify no NFTs remain (optional safety check)
-        require(depositedTokens.length == 0, "NFTs still in contract");
-        
-        // Reset depositedTokens to a fresh empty array
-        delete depositedTokens;
     }
 
     /**
@@ -199,7 +250,7 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
     function setPreferences(
         bytes32 ownerTokenHash,
         bytes32[] calldata preferences
-    ) external {
+    ) external onlyInPhase(Phase.Rank) {
         require(tokenOwners[ownerTokenHash] == msg.sender, "Not token owner");
         
         // Validate all preference tokens exist in the contract
@@ -282,10 +333,12 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
      * @param journalData bytes representing the abi encoded journal
      * @param seal The verification seal from RISC Zero
      */
-    function reallocateTokens(bytes calldata journalData, bytes calldata seal) external {
+    function reallocateTokens(bytes calldata journalData, bytes calldata seal) external onlyInPhase(Phase.Trade) {
         // Decode and validate the journal data
         Journal memory journal = parseJournal(journalData);
         require(journal.ttcContract == address(this), "Invalid contract address");
+        (uint240 claimID,) = Encoding.decodeVersionedID(journal.commitment.id);
+        require(claimID == tradeInitiatedAtBlock, "Commitment doesn't represent state at trade block number");
         require(Steel.validateCommitment(journal.commitment), "Invalid commitment");
 
         // Verify the proof
@@ -299,6 +352,7 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
             
             _transferNFTOwnership(currentOwner, realloc.newOwner, tokenHash);
         }
+        currentPhase = Phase.Withdraw;
     }
 
     function getTokenFromHash(bytes32 tokenHash) external view returns (Token memory tokenData) {

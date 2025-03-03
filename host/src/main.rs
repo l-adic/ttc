@@ -49,15 +49,15 @@ mod deployer {
     }
 
     pub async fn deploy_for_test(
+        config: &Config,
         provider: impl Provider<Http<Client>, Ethereum> + Clone,
         dev_mode: bool,
-        n_721: usize,
     ) -> Result<Artifacts> {
         info!("Deploying NFT");
 
         // Deploy NFTs sequentially to avoid nonce conflicts
-        let mut nft = Vec::with_capacity(n_721);
-        for _ in 0..n_721 {
+        let mut nft = Vec::with_capacity(config.num_erc721);
+        for _ in 0..config.num_erc721 {
             let contract = TestNFT::deploy(&provider).await?;
             let address = *contract.address();
             info!("Deployed NFT at {:#}", address);
@@ -73,7 +73,8 @@ mod deployer {
                 info!("Deploying Groth16Verifier");
                 *Verifier::deploy(&provider).await?.address()
             };
-            *TopTradingCycle::deploy(&provider, verifier)
+            let duration = U256::from(config.phase_duration);
+            *TopTradingCycle::deploy(&provider, verifier, duration)
                 .await?
                 .address()
         };
@@ -275,7 +276,7 @@ impl TestSetup {
         let provider = create_provider(config.node_url.clone(), owner.clone());
         let Artifacts { ttc, nft } = {
             let dev_mode = env::var("RISC0_DEV_MODE").is_ok();
-            deploy_for_test(provider, dev_mode, config.num_erc721).await
+            deploy_for_test(config, provider, dev_mode).await
         }?;
         let actors = {
             let prefs = make_token_preferences(nft, prefs);
@@ -402,7 +403,7 @@ impl TestSetup {
                 .iter()
                 .map(|actor| {
                     let provider = create_provider(self.node_url.clone(), actor.wallet());
-                    let ttc = TopTradingCycle::new(self.ttc, provider);
+                    let ttc = TopTradingCycle::new(self.ttc, provider.clone());
                     async move {
                         eprintln!(
                             "Withdrawing token {:#} for existing owner {:#}",
@@ -410,6 +411,7 @@ impl TestSetup {
                             actor.address()
                         );
                         ttc.withdrawNFT(actor.token().hash())
+                            .gas(self.config.max_gas)
                             .send()
                             .await?
                             .watch()
@@ -429,7 +431,7 @@ impl TestSetup {
                 .iter()
                 .map(|(actor, new_token_hash)| {
                     let provider = create_provider(self.node_url.clone(), actor.wallet());
-                    let ttc = TopTradingCycle::new(self.ttc, provider);
+                    let ttc = TopTradingCycle::new(self.ttc, provider.clone());
                     async move {
                         eprintln!(
                             "Withdrawing token {:#} for new owner {:#}",
@@ -437,6 +439,7 @@ impl TestSetup {
                             actor.address()
                         );
                         ttc.withdrawNFT(*new_token_hash)
+                            .gas(self.config.max_gas)
                             .send()
                             .await?
                             .watch()
@@ -457,10 +460,18 @@ impl TestSetup {
 async fn run_test_case(config: Config, p: Preferences<U256>) -> Result<()> {
     //   info!("Setting up test environment for {} actors", p.prefs.len());
     let setup = TestSetup::new(&config, p).await?;
+    let ttc = {
+        let provider = create_provider(config.node_url.clone(), setup.owner.clone());
+        TopTradingCycle::new(setup.ttc, provider)
+    };
     info!("Depositing tokens to contract");
     setup.deposit_tokens().await?;
+    info!("Advancing phase to Rank");
+    ttc.advancePhase().send().await?.watch().await?;
     info!("Declaring preferences in contract");
     setup.set_preferences().await?;
+    info!("Advancing phase to Trade");
+    ttc.advancePhase().send().await?.watch().await?;
     info!("Computing the reallocation");
     let (proof, seal) = {
         let prover_config = ProverConfig {
@@ -501,6 +512,8 @@ async fn run_test_case(config: Config, p: Preferences<U256>) -> Result<()> {
     };
     info!("Withdrawing tokens from contract back to owners");
     setup.withraw(&trade_results).await?;
+    info!("Advancing phase to Cleanup");
+    ttc.advancePhase().send().await?.watch().await?;
     Ok(())
 }
 
@@ -550,6 +563,9 @@ struct Config {
 
     #[arg(long, name = "num-erc721", default_value_t = 3)]
     num_erc721: usize,
+
+    #[arg(long, name = "phase-duration", default_value_t = 0)]
+    phase_duration: u64,
 }
 
 #[tokio::main]
