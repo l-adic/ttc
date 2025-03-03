@@ -15,7 +15,7 @@
 #![allow(unused_doc_comments)]
 #![no_main]
 
-use alloy_primitives::{Address, FixedBytes};
+use alloy_primitives::{Address, B256};
 use alloy_sol_types::{SolValue, sol};
 use risc0_steel::{
     ethereum::{EthEvmInput, ETH_SEPOLIA_CHAIN_SPEC},
@@ -59,7 +59,7 @@ sol! {
     }
 }
 
-fn build_owner_dict(prefs: &[TopTradingCycle::TokenPreferences]) -> HashMap<FixedBytes<32>, Address> {
+fn build_owner_dict(prefs: &[TopTradingCycle::TokenPreferences]) -> HashMap<B256, Address> {
     prefs
         .iter()
         .cloned()
@@ -70,7 +70,7 @@ fn build_owner_dict(prefs: &[TopTradingCycle::TokenPreferences]) -> HashMap<Fixe
 // This function calls the solver and produces the data we need to
 // submit to the contract
 fn reallocate(
-    depositor_address_from_token_id: HashMap<FixedBytes<32>, Address>,
+    depositor_address_from_token_id: HashMap<B256, Address>,
     prefs: Vec<TopTradingCycle::TokenPreferences>,
 ) -> Vec<TopTradingCycle::TokenReallocation> {
     let prefs = {

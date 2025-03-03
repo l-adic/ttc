@@ -1,7 +1,7 @@
 use anyhow::{Ok, Result};
 use clap::Parser;
 use host::contract::{
-    deploy_with_multiple_721,
+    deploy,
     nft::TestNFT,
     ttc::TopTradingCycle::{self},
     Artifacts,
@@ -223,8 +223,7 @@ impl TestSetup {
         let owner = PrivateKeySigner::from_str(config.owner_key.as_str())?;
         let provider = create_provider(config.node_url.clone(), owner.clone());
         let dev_mode = env::var("RISC0_DEV_MODE").is_ok();
-        let Artifacts { ttc, nft } =
-            deploy_with_multiple_721(provider, dev_mode, config.num_erc721).await?;
+        let Artifacts { ttc, nft } = deploy(provider, dev_mode, config.num_erc721).await?;
         let prefs = make_token_preferences(nft, prefs);
         let actors = {
             let ds = actor::make_actors_data(config, prefs);

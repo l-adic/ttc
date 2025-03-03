@@ -74,9 +74,7 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
      * @return The token hash for the deposited token
      */
     function depositNFT(Token calldata token) external nonReentrant returns (bytes32) {
-        require(token.collection != address(0), "Invalid collection address");
         IERC721 nftContract = IERC721(token.collection);
-        require(nftContract.ownerOf(token.tokenId) == msg.sender, "Not token owner");
         
         bytes32 tokenHash = getTokenHash(token);
         require(tokenOwners[tokenHash] == address(0), "Token already deposited");
