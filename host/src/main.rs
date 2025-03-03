@@ -1,10 +1,8 @@
 use anyhow::{Ok, Result};
 use clap::Parser;
 use host::contract::{
-    deploy,
     nft::TestNFT,
     ttc::TopTradingCycle::{self},
-    Artifacts,
 };
 use host::prover::{create_provider, Prover, ProverConfig};
 use proptest::{
@@ -28,6 +26,57 @@ use tracing_subscriber::{
 };
 use ttc::strict::Preferences;
 use url::Url;
+
+mod deployer {
+    use super::*;
+    use host::contract::{
+        nft::TestNFT, ttc::TopTradingCycle, verifier::MockVerifier, verifier::Verifier,
+    };
+    use risc0_steel::alloy::{
+        network::Ethereum,
+        primitives::Address,
+        providers::Provider,
+        transports::http::{Client, Http},
+    };
+
+    pub struct Artifacts {
+        pub ttc: Address,
+        pub nft: Vec<Address>,
+    }
+
+    pub async fn deploy_for_test(
+        provider: impl Provider<Http<Client>, Ethereum> + Clone,
+        dev_mode: bool,
+        n_721: usize,
+    ) -> Result<Artifacts> {
+        info!("Deploying NFT");
+
+        // Deploy NFTs sequentially to avoid nonce conflicts
+        let mut nft = Vec::with_capacity(n_721);
+        for _ in 0..n_721 {
+            let contract = TestNFT::deploy(&provider).await?;
+            let address = *contract.address();
+            info!("Deployed NFT at {}", address);
+            nft.push(address);
+        }
+
+        info!("Deploying TTC");
+        let ttc = {
+            let verifier = if dev_mode {
+                info!("Deploying MockVerifier");
+                *MockVerifier::deploy(&provider).await?.address()
+            } else {
+                info!("Deploying Groth16Verifier");
+                *Verifier::deploy(&provider).await?.address()
+            };
+            *TopTradingCycle::deploy(&provider, verifier)
+                .await?
+                .address()
+        };
+
+        Ok(Artifacts { ttc, nft })
+    }
+}
 
 // We want to control how the actors (i.e. contract participants) are created.
 // This module forces that only actors with ETH and an NFT are participating,
@@ -179,12 +228,12 @@ mod actor {
             })
             .collect();
 
-        let res = futures::future::try_join_all(futures).await?;
-        Ok(res)
+        futures::future::try_join_all(futures).await
     }
 }
 
 use actor::Actor;
+use deployer::{deploy_for_test, Artifacts};
 
 struct TradeResults {
     stable: Vec<Actor>,
@@ -225,7 +274,7 @@ impl TestSetup {
         let provider = create_provider(config.node_url.clone(), owner.clone());
         let Artifacts { ttc, nft } = {
             let dev_mode = env::var("RISC0_DEV_MODE").is_ok();
-            deploy(provider, dev_mode, config.num_erc721).await
+            deploy_for_test(provider, dev_mode, config.num_erc721).await
         }?;
         let actors = {
             let prefs = make_token_preferences(nft, prefs);
@@ -357,10 +406,10 @@ impl TestSetup {
                 .cloned()
                 .collect::<Vec<_>>()
         };
-        let provider = create_provider(self.node_url.clone(), self.owner.clone());
-        let ttc = Arc::new(TopTradingCycle::new(self.ttc, provider));
         // all of the actors who made a trade
         let traders = {
+            let provider = create_provider(self.node_url.clone(), self.owner.clone());
+            let ttc = Arc::new(TopTradingCycle::new(self.ttc, provider));
             let futures = reallocations
                 .iter()
                 .cloned()
