@@ -12,100 +12,136 @@ import {ImageID} from "./ImageID.sol";
 
 /**
  * @title TopTradingCycle
- * @dev Contract for managing NFT custody and transfers in a top trading cycle
+ * @dev Contract for managing NFTs from any collection in a top trading cycle
  */
 contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
     bytes32 public constant imageID = ImageID.PROVABLE_TTC_ID;
 
     IRiscZeroVerifier public immutable verifier;
-
-    // The ERC721 contract this TTC operates on
-    IERC721 public immutable nftContract;
     
-    // Mapping from token ID to current owner
-    mapping(uint256 => address) public tokenOwners;
+    // Struct to represent a token from any ERC721 collection
+    struct Token {
+        address collection;  // The ERC721 contract address
+        uint256 tokenId;     // The token ID within that collection
+    }
     
-    // Array to keep track of all deposited token IDs
-    uint256[] private depositedTokens;
+    // Mapping from token hash to current owner
+    mapping(bytes32 => address) public tokenOwners;
     
-    // Mapping to track index of token ID in depositedTokens array
-    mapping(uint256 => uint256) private tokenIdToIndex;
+    // Array to keep track of all deposited tokens
+    Token[] private depositedTokens;
+    
+    // Mapping to track index of token in depositedTokens array
+    mapping(bytes32 => uint256) private tokenHashToIndex;
     
     // Event for ownership transfers within the contract (not actual NFT transfers)
-    event InternalOwnershipTransferred(address indexed from, address indexed to, uint256 indexed tokenId);
+    event InternalOwnershipTransferred(address indexed from, address indexed to, address indexed collection, uint256 tokenId);
     
     // Event for when preferences are updated
-    event PreferencesUpdated(uint256 indexed tokenId, uint256[] preferences);
+    event PreferencesUpdated(address indexed collection, uint256 indexed tokenId, bytes32[] preferences);
 
-    // Mapping from token ID to its preference list
-    mapping(uint256 => uint256[]) public tokenPreferences;
+    // Mapping from token hash to its preference list (which is a list of token hashes)
+    mapping(bytes32 => bytes32[]) public tokenPreferences;
 
     // Struct to represent a token and its preferences
     struct TokenPreferences {
         address owner;
-        uint256 tokenId;
-        uint256[] preferences;
+        bytes32 tokenHash;
+        bytes32[] preferences;
     }
 
     /**
-     * @dev Constructor sets the NFT contract address
-     * @param _nftContract Address of the ERC721 contract
-     * @param _nftContract Address of the Verifier contract
+     * @dev Constructor sets the verifier contract address
+     * @param _verifier Address of the Verifier contract
      */
-    constructor(address _nftContract, IRiscZeroVerifier _verifier) Ownable(msg.sender) {
-        require(_nftContract != address(0), "Invalid NFT contract address");
-        require(address(_verifier) != address(0), "Invalid Verifier contract address");
-        nftContract = IERC721(_nftContract);
+    constructor(IRiscZeroVerifier _verifier) Ownable(msg.sender) {
+        require(address(_verifier) != address(0), "Invalid Verifier address");
         verifier = _verifier;
     }
 
     /**
-     * @dev Allows a user to deposit their NFT into the contract
-     * @param tokenId The ID of the token to deposit
+     * @dev Generate a unique hash for a token
+     * @param token The Token struct containing collection address and tokenId
+     * @return The hash representing this token
      */
-    function depositNFT(uint256 tokenId) external nonReentrant {
-        require(nftContract.ownerOf(tokenId) == msg.sender, "Not token owner");
-        require(tokenOwners[tokenId] == address(0), "Token already deposited");
+    function getTokenHash(Token memory token) public pure returns (bytes32) {
+        return keccak256(abi.encodePacked(token.collection, token.tokenId));
+    }
+
+    /**
+     * @dev Allows a user to deposit their NFT into the contract
+     * @param token The Token struct containing collection address and tokenId
+     * @return The token hash for the deposited token
+     */
+    function depositNFT(Token calldata token) external nonReentrant returns (bytes32) {
+        IERC721 nftContract = IERC721(token.collection);
+        
+        bytes32 tokenHash = getTokenHash(token);
+        require(tokenOwners[tokenHash] == address(0), "Token already deposited");
         
         // Transfer the NFT to this contract
-        nftContract.safeTransferFrom(msg.sender, address(this), tokenId);
+        nftContract.safeTransferFrom(msg.sender, address(this), token.tokenId);
         
         // Record the depositor as the owner in our contract
-        tokenOwners[tokenId] = msg.sender;
+        tokenOwners[tokenHash] = msg.sender;
         
         // Add token to tracking array
-        tokenIdToIndex[tokenId] = depositedTokens.length;
-        depositedTokens.push(tokenId);
+        tokenHashToIndex[tokenHash] = depositedTokens.length;
+        depositedTokens.push(token);
+        
+        return tokenHash;
     }
 
     /**
      * @dev Allows the current owner to withdraw their NFT
-     * @param tokenId The ID of the token to withdraw
+     * @param tokenHash The token hash
      */
-    function withdrawNFT(uint256 tokenId) external nonReentrant {
-        require(tokenOwners[tokenId] == msg.sender, "Not token owner");
+    function withdrawNFT(bytes32 tokenHash) external nonReentrant {
+        require(tokenOwners[tokenHash] == msg.sender, "Not token owner");
         
-        // Clear ownership record
-        delete tokenOwners[tokenId];
+        // Get token data
+        uint256 tokenIndex = tokenHashToIndex[tokenHash];
+        Token memory tokenData = depositedTokens[tokenIndex];
+        
+        // Clear all token data
+        delete tokenOwners[tokenHash];
+        delete tokenPreferences[tokenHash];
+        
+        // Remove token from the depositedTokens array using the "swap and pop" pattern
+        uint256 lastTokenIndex = depositedTokens.length - 1;
+        
+        // If the token to remove is not the last one, move the last token to its position
+        if (tokenIndex != lastTokenIndex) {
+            // Get the last token in the array
+            Token memory lastToken = depositedTokens[lastTokenIndex];
+            
+            // Move the last token to the position of the token being removed
+            depositedTokens[tokenIndex] = lastToken;
+            
+            // Update the index mapping for the moved token
+            bytes32 lastTokenHash = getTokenHash(lastToken);
+            tokenHashToIndex[lastTokenHash] = tokenIndex;
+        }
+        
+        // Remove the last element (which is either the token we want to remove or a duplicate)
+        depositedTokens.pop();
+        
+        // Delete the token's index mapping entry
+        delete tokenHashToIndex[tokenHash];
         
         // Transfer the NFT back to the owner
-        nftContract.safeTransferFrom(address(this), msg.sender, tokenId);
+        IERC721(tokenData.collection).safeTransferFrom(address(this), msg.sender, tokenData.tokenId);
     }
 
     /**
      * @dev Reset contract state by clearing all tracking data and preferences
+     * This should only be called when no NFTs remain in the contract
      */
-    function cleanup() external {
-        // Get current tokens for iteration
-        uint256[] memory tokens = depositedTokens;
+    function cleanup() external onlyOwner {
+        // Verify no NFTs remain (optional safety check)
+        require(depositedTokens.length == 0, "NFTs still in contract");
         
-        // Clear all contract state
-        for (uint256 i = 0; i < tokens.length; i++) {
-            delete tokenIdToIndex[tokens[i]];
-            delete tokenPreferences[tokens[i]];
-        }
-        
-        // Clear the array
+        // Reset depositedTokens to a fresh empty array
         delete depositedTokens;
     }
 
@@ -113,50 +149,58 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
      * @dev Internal function to transfer NFT ownership within the contract
      * @param from Current owner address
      * @param to New owner address
-     * @param tokenId The ID of the token to transfer
+     * @param tokenHash The token hash
      */
-    function _transferNFTOwnership(address from, address to, uint256 tokenId) internal {
-        require(tokenOwners[tokenId] == from, "Not token owner");
+    function _transferNFTOwnership(address from, address to, bytes32 tokenHash) internal {
+        require(tokenOwners[tokenHash] == from, "Not token owner");
         require(to != address(0), "Invalid recipient");
         
-        tokenOwners[tokenId] = to;
+        tokenOwners[tokenHash] = to;
         
-        emit InternalOwnershipTransferred(from, to, tokenId);
+        // Get token data for the event
+        Token memory tokenData = depositedTokens[tokenHashToIndex[tokenHash]];
+        
+        emit InternalOwnershipTransferred(from, to, tokenData.collection, tokenData.tokenId);
     }
 
     /**
-     * @dev View function to get all deposited token IDs
-     * @return Array of all token IDs currently deposited in the contract
+     * @dev View function to get all deposited tokens
+     * @return Array of all tokens currently deposited in the contract
      */
-    function getDepositedTokens() external view returns (uint256[] memory) {
+    function getDepositedTokens() external view returns (Token[] memory) {
         return depositedTokens;
     }
 
     /**
      * @dev View function to check if a token is deposited in the contract
-     * @param tokenId The ID of the token to check
+     * @param token The Token struct containing collection address and tokenId
      * @return bool indicating if the token is deposited
      */
-    function isTokenDeposited(uint256 tokenId) external view returns (bool) {
-        return tokenOwners[tokenId] != address(0);
+    function isTokenDeposited(Token calldata token) external view returns (bool) {
+        bytes32 tokenHash = getTokenHash(token);
+        return tokenOwners[tokenHash] != address(0);
     }
 
     /**
      * @dev View function to get the current owner of a deposited token
-     * @param tokenId The ID of the token to check
+     * @param token The Token struct containing collection address and tokenId
      * @return address of the current owner
      */
-    function getCurrentOwner(uint256 tokenId) external view returns (address) {
-        return tokenOwners[tokenId];
+    function getCurrentOwner(Token calldata token) external view returns (address) {
+        bytes32 tokenHash = getTokenHash(token);
+        return tokenOwners[tokenHash];
     }
 
     /**
      * @dev Allows a token owner to set their preferences for trades
-     * @param tokenId The ID of the token whose preferences are being set
-     * @param preferences Array of token IDs representing trade preferences in order of preference
+     * @param ownerTokenHash The token hash of the owner's token
+     * @param preferences Array of token hashes representing preferences
      */
-    function setPreferences(uint256 tokenId, uint256[] calldata preferences) external {
-        require(tokenOwners[tokenId] == msg.sender, "Not token owner");
+    function setPreferences(
+        bytes32 ownerTokenHash,
+        bytes32[] calldata preferences
+    ) external {
+        require(tokenOwners[ownerTokenHash] == msg.sender, "Not token owner");
         
         // Validate all preference tokens exist in the contract
         for (uint256 i = 0; i < preferences.length; i++) {
@@ -164,19 +208,22 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
         }
         
         // Clear existing preferences and set new ones
-        delete tokenPreferences[tokenId];
-        tokenPreferences[tokenId] = preferences;
+        delete tokenPreferences[ownerTokenHash];
+        tokenPreferences[ownerTokenHash] = preferences;
         
-        emit PreferencesUpdated(tokenId, preferences);
+        // Get the token details for the event
+        Token memory tokenData = depositedTokens[tokenHashToIndex[ownerTokenHash]];
+        
+        emit PreferencesUpdated(tokenData.collection, tokenData.tokenId, preferences);
     }
 
     /**
      * @dev View function to get the preferences for a specific token
-     * @param tokenId The ID of the token to check preferences for
-     * @return Array of token IDs representing trade preferences
+     * @param tokenHash The Token hash representing the collection address and tokenId
+     * @return Array of token hashes representing trade preferences
      */
-    function getPreferences(uint256 tokenId) external view returns (uint256[] memory) {
-        return tokenPreferences[tokenId];
+    function getPreferences(bytes32 tokenHash) external view returns (bytes32[] memory) {
+        return tokenPreferences[tokenHash];
     }
 
     /**
@@ -188,11 +235,13 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
         TokenPreferences[] memory allPreferences = new TokenPreferences[](totalTokens);
         
         for (uint256 i = 0; i < totalTokens; i++) {
-            uint256 tokenId = depositedTokens[i];
+            Token memory tokenData = depositedTokens[i];
+            bytes32 tokenHash = getTokenHash(tokenData);
+            
             allPreferences[i] = TokenPreferences({
-                owner: tokenOwners[tokenId],
-                tokenId: tokenId,
-                preferences: tokenPreferences[tokenId]
+                owner: tokenOwners[tokenHash],
+                tokenHash: tokenHash,
+                preferences: tokenPreferences[tokenHash]
             });
         }
         
@@ -201,12 +250,12 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
 
     // Struct to represent a token reallocation pair
     struct TokenReallocation {
-        uint256 tokenId;
+        bytes32 tokenHash;
         address newOwner;
     }
 
     struct Journal {
-        Steel.Commitment commitment ;
+        Steel.Commitment commitment;
         address ttcContract;
         TokenReallocation[] reallocations;
     }
@@ -221,12 +270,9 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
         return journal;
     }
 
-
     /**
-     * @dev STUB FUNCTION - Atomic reallocation of token ownership
-     * This function will implement the core top trading cycle algorithm
-     * by reallocating tokens according to the computed cycles.
-     * For each (tokenId, newOwner) pair, newOwner becomes the owner of tokenId.
+     * @dev Reallocate token ownership according to the computed trading cycles
+     * For each (collection, tokenId, newOwner) triplet, newOwner becomes the owner of the token.
      * 
      * Requirements:
      * - All tokens must exist in the contract
@@ -234,13 +280,12 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
      * - The reallocation must form valid trading cycles
      * 
      * @param journalData bytes representing the abi encoded journal
+     * @param seal The verification seal from RISC Zero
      */
-
     function reallocateTokens(bytes calldata journalData, bytes calldata seal) external {
-
-         // Decode and validate the journal data
+        // Decode and validate the journal data
         Journal memory journal = parseJournal(journalData);
-        require(journal.ttcContract == address(this), "Invalid token address");
+        require(journal.ttcContract == address(this), "Invalid contract address");
         require(Steel.validateCommitment(journal.commitment), "Invalid commitment");
 
         // Verify the proof
@@ -249,8 +294,19 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
 
         for (uint256 i = 0; i < journal.reallocations.length; i++) {
             TokenReallocation memory realloc = journal.reallocations[i];
-            address currentOwner = tokenOwners[realloc.tokenId];
-            _transferNFTOwnership(currentOwner, realloc.newOwner, realloc.tokenId);
+            bytes32 tokenHash = realloc.tokenHash;
+            address currentOwner = tokenOwners[tokenHash];
+            
+            _transferNFTOwnership(currentOwner, realloc.newOwner, tokenHash);
         }
     }
+
+    function getTokenFromHash(bytes32 tokenHash) external view returns (Token memory tokenData) {
+        require(tokenOwners[tokenHash] != address(0), "Token hash not found");
+        uint256 index = tokenHashToIndex[tokenHash];
+        require(index < depositedTokens.length, "Token index out of bounds");
+        
+        return depositedTokens[index];
+    }
+
 }
