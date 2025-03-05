@@ -61,7 +61,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Define the server address
     let addr = {
-        let host = "127.0.0.1";
+        let host = "0.0.0.0";
         let addr = format!("{}:{}", host, cli.json_rpc_port);
         addr.parse::<SocketAddr>()
     }?;

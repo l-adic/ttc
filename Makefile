@@ -17,7 +17,7 @@ build-methods: ## Build the RISC Zero guest program
 build-contracts: build-methods ## Build smart contracts (requires guest)
 	cd contract && forge build
 
-build-prover: build-methods
+build-prover: build-contracts
 	cargo build -p prover-server --release
 
 build: build-contracts ## Build all components (guests, contracts, host)
@@ -41,19 +41,13 @@ fmt: ## Format code
 # Check everything
 check: fmt lint build test ## Run all checks (format, lint, build, test)
 
-run-mock-proving-server: build-prover ## Start proving server
-	RUST_LOG=info RISC0_DEV_MODE=true cargo run --release --bin prover-server
-
 # Node tests
 run-node-tests-mock: build ## Run node tests with real RISC0
 	RUST_LOG=info cargo run --bin host --release -- \
-		--max-actors 3 \
+		--max-actors 20 \
 		--chain-id 31337 \
 		--owner-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
 		--mock-verifier
-
-run-proving-server: build-prover ## Start proving server
-	RUST_LOG=info cargo run --release --bin prover-server
 
 run-node-tests: build ## Run node tests with real RISC0
 	RUST_LOG=info cargo run --bin host --release -- \
