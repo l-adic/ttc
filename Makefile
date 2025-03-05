@@ -1,4 +1,4 @@
-.PHONY: build-methods build-contracts build test clean lint fmt check all run-node-tests run-node-tests-mock help
+.PHONY: build-methods build-contracts build test clean lint fmt check all run-proving-server run-mock-proving-server run-node-tests help
 
 .DEFAULT_GOAL := help
 
@@ -38,16 +38,22 @@ fmt: ## Format code
 # Check everything
 check: fmt lint build test ## Run all checks (format, lint, build, test)
 
+run-mock-proving-server: ## Start proving server
+	RUST_LOG=info RISC0_DEV_MODE=true cargo run --release --bin prover-server
+
 # Node tests
+run-node-tests-mock: build ## Run node tests with real RISC0
+	RUST_LOG=info cargo run -p host --release -- \
+		--max-actors 3 \
+		--chain-id 31337 \
+		--owner-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
+		--mock-verifier
+
+run-proving-server: ## Start proving server
+	RUST_LOG=info cargo run --release --bin prover-server
+
 run-node-tests: build ## Run node tests with real RISC0
 	RUST_LOG=info cargo run -p host --release -- \
 		--max-actors 3 \
 		--chain-id 31337 \
 		--owner-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-
-run-node-tests-mock: build ## Run node tests with mocked RISC0
-	RUST_LOG=info RISC0_DEV_MODE=true cargo run -p host --release -- \
-		--max-actors 20 \
-		--chain-id 31337 \
-		--owner-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
-

@@ -4,24 +4,27 @@ use host::contract::{
     nft::TestNFT,
     ttc::TopTradingCycle::{self},
 };
-use host::prover::{create_provider, Prover, ProverConfig};
+use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use proptest::{
     arbitrary::Arbitrary,
     strategy::{Strategy, ValueTree},
     test_runner::TestRunner,
 };
+use prover::rpc::ProverApiClient;
 use rand::prelude::SliceRandom;
 use risc0_steel::alloy::{
+    network::{Ethereum, EthereumWallet},
     primitives::{utils::parse_ether, Address, U256},
-    providers::Provider,
+    providers::{Provider, ProviderBuilder},
     signers::local::PrivateKeySigner,
+    transports::http::{Client, Http},
 };
 use risc0_steel::alloy::{
     primitives::{Bytes, B256},
     signers::Signer,
     sol_types::SolValue,
 };
-use std::{collections::HashMap, env, str::FromStr};
+use std::{collections::HashMap, str::FromStr};
 use time::macros::format_description;
 use tracing::{info, instrument};
 use tracing_subscriber::{
@@ -30,6 +33,17 @@ use tracing_subscriber::{
 };
 use ttc::strict::Preferences;
 use url::Url;
+
+fn create_provider(
+    node_url: Url,
+    signer: PrivateKeySigner,
+) -> impl Provider<Http<Client>, Ethereum> + Clone {
+    let wallet = EthereumWallet::from(signer);
+    ProviderBuilder::new()
+        .with_recommended_fillers() // Add recommended fillers for nonce, gas, etc.
+        .wallet(wallet)
+        .on_http(node_url)
+}
 
 mod deployer {
     use super::*;
@@ -248,6 +262,7 @@ struct TestSetup {
     ttc: Address,
     owner: PrivateKeySigner,
     actors: Vec<Actor>,
+    prover: HttpClient,
 }
 
 fn make_token_preferences(
@@ -274,20 +289,20 @@ impl TestSetup {
     async fn new(config: &Config, prefs: Preferences<U256>) -> Result<Self> {
         let owner = PrivateKeySigner::from_str(config.owner_key.as_str())?;
         let provider = create_provider(config.node_url.clone(), owner.clone());
-        let Artifacts { ttc, nft } = {
-            let dev_mode = env::var("RISC0_DEV_MODE").is_ok();
-            deploy_for_test(config, provider, dev_mode).await
-        }?;
+        let Artifacts { ttc, nft } =
+            deploy_for_test(config, provider, config.mock_verifier).await?;
         let actors = {
             let prefs = make_token_preferences(nft, prefs);
             actor::create_actors(config.clone(), ttc, owner.clone(), prefs).await
         }?;
+        let prover = HttpClientBuilder::default().build(config.prover_url.clone())?;
         Ok(Self {
             config: config.clone(),
             node_url: config.node_url.clone(),
             ttc,
             owner,
             actors,
+            prover,
         })
     }
 
@@ -474,13 +489,10 @@ async fn run_test_case(config: Config, p: Preferences<U256>) -> Result<()> {
     ttc.advancePhase().send().await?.watch().await?;
     info!("Computing the reallocation");
     let (proof, seal) = {
-        let prover_config = ProverConfig {
-            node_url: setup.node_url.clone(),
-            wallet: setup.owner.clone(),
-            ttc: setup.ttc,
-        };
-        let prover = Prover::new(&prover_config);
-        prover.prove().await
+        let resp = ProverApiClient::prove(&setup.prover, *ttc.address()).await?;
+        info!("Received proof from prover");
+        let journal = TopTradingCycle::Journal::abi_decode(&resp.journal, true)?;
+        Ok((journal, resp.seal))
     }?;
     setup.reallocate(proof.clone(), seal).await?;
     let trade_results = {
@@ -542,6 +554,9 @@ struct Config {
     #[arg(long, default_value = "http://localhost:8545")]
     node_url: Url,
 
+    #[arg(long, default_value = "http://localhost:8546")]
+    prover_url: Url,
+
     #[arg(long, default_value_t = 10)]
     max_actors: usize,
 
@@ -566,6 +581,9 @@ struct Config {
 
     #[arg(long, name = "phase-duration", default_value_t = 0)]
     phase_duration: u64,
+
+    #[arg(long, name = "mock-verifier", default_value_t = false)]
+    mock_verifier: bool,
 }
 
 #[tokio::main]
