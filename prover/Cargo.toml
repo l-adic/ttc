@@ -9,11 +9,9 @@ anyhow.workspace = true
 futures.workspace = true
 jsonrpsee = { workspace = true, features = ["client", "macros", "server"] }
 serde.workspace = true
-# time.workspace = true
 tokio.workspace = true
 tracing.workspace = true
-# tracing-subscriber.workspace = true
-url = { version = "2.5" }
+url.workspace = true
 
 
 risc0-ethereum-contracts.workspace = true

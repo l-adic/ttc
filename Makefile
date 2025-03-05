@@ -1,4 +1,4 @@
-.PHONY: build-methods build-contracts build test clean lint fmt check all run-proving-server run-mock-proving-server run-node-tests help
+.PHONY: build-methods build-contracts build test clean lint fmt check all run-proving-server run-mock-proving-server run-node-tests run-node-tests-mock help
 
 .DEFAULT_GOAL := help
 
@@ -43,7 +43,7 @@ run-mock-proving-server: ## Start proving server
 
 # Node tests
 run-node-tests-mock: build ## Run node tests with real RISC0
-	RUST_LOG=info cargo run -p host --release -- \
+	RUST_LOG=info cargo run --bin host --release -- \
 		--max-actors 3 \
 		--chain-id 31337 \
 		--owner-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
@@ -53,7 +53,7 @@ run-proving-server: ## Start proving server
 	RUST_LOG=info cargo run --release --bin prover-server
 
 run-node-tests: build ## Run node tests with real RISC0
-	RUST_LOG=info cargo run -p host --release -- \
+	RUST_LOG=info cargo run --bin host --release -- \
 		--max-actors 3 \
 		--chain-id 31337 \
 		--owner-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
