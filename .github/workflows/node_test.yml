@@ -14,7 +14,21 @@ jobs:
     
     steps:
     - uses: actions/checkout@v4
-      
+
+    - name: Rust Cache
+      uses: Swatinem/rust-cache@v2
+
+    # Install Foundry
+    - name: Install Foundry
+      uses: foundry-rs/foundry-toolchain@v1
+      with:
+        version: nightly
+
+    - name: Install RISC0
+      uses: ./.github/actions/install-risc0
+      with:
+        version: 1.2.4
+
     # Cache Docker layers
     - name: Set up Docker cache
       uses: actions/cache@v3

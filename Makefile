@@ -1,4 +1,4 @@
-.PHONY: build-methods build-contracts build-prover build test clean lint fmt check all run-proving-server run-mock-proving-server run-node-tests run-node-tests-mock help
+.PHONY: build-methods build-contracts build-prover build-host build test clean lint fmt check all run-proving-server run-mock-proving-server run-node-tests run-node-tests-mock help
 
 .DEFAULT_GOAL := help
 
@@ -19,6 +19,9 @@ build-contracts: build-methods ## Build smart contracts (requires guest)
 
 build-prover: build-contracts
 	cargo build -p prover-server --release
+
+build-host: build-contracts ## Build the RISC Zero host program
+	cargo build -p host --release
 
 build: build-contracts ## Build all components (guests, contracts, host)
 	cargo build --release --workspace
@@ -42,14 +45,14 @@ fmt: ## Format code
 check: fmt lint build test ## Run all checks (format, lint, build, test)
 
 # Node tests
-run-node-tests-mock: build ## Run node tests with real RISC0
+run-node-tests-mock: build-host ## Run node tests with real RISC0
 	RUST_LOG=info cargo run --bin host --release -- \
 		--max-actors 20 \
 		--chain-id 31337 \
 		--owner-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80 \
 		--mock-verifier
 
-run-node-tests: build ## Run node tests with real RISC0
+run-node-tests: build-host ## Run node tests with real RISC0
 	RUST_LOG=info cargo run --bin host --release -- \
 		--max-actors 3 \
 		--chain-id 31337 \

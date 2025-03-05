@@ -1,10 +1,15 @@
 use jsonrpsee::{proc_macros::rpc, types::ErrorObjectOwned};
 use risc0_steel::alloy::primitives::Address;
+use serde::{Deserialize, Serialize};
 
-use crate::prover;
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Proof {
+    pub journal: Vec<u8>,
+    pub seal: Vec<u8>,
+}
 
 #[rpc(server, client)]
 pub trait ProverApi {
     #[method(name = "prove")]
-    async fn prove(&self, address: Address) -> Result<prover::Proof, ErrorObjectOwned>;
+    async fn prove(&self, address: Address) -> Result<Proof, ErrorObjectOwned>;
 }

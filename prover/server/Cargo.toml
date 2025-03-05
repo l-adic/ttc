@@ -16,8 +16,10 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 url.workspace = true
 
+risc0-ethereum-contracts.workspace = true
 risc0-steel = { workspace = true, features = ["host"]}
+risc0-zkvm = { workspace = true }
 
 ttc = { workspace = true }
 methods.workspace = true
-prover.workspace = true
+prover-common.workspace = true

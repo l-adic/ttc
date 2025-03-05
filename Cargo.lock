@@ -2405,9 +2405,8 @@ dependencies = [
  "clap",
  "futures",
  "jsonrpsee",
- "methods",
  "proptest",
- "prover",
+ "prover-common",
  "rand",
  "risc0-steel",
  "serde",
@@ -3825,21 +3824,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "prover"
+name = "prover-common"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "futures",
  "jsonrpsee",
- "methods",
- "risc0-ethereum-contracts",
  "risc0-steel",
- "risc0-zkvm",
  "serde",
- "tokio",
- "tracing",
- "ttc",
- "url",
 ]
 
 [[package]]
@@ -3851,8 +3842,10 @@ dependencies = [
  "futures",
  "jsonrpsee",
  "methods",
- "prover",
+ "prover-common",
+ "risc0-ethereum-contracts",
  "risc0-steel",
+ "risc0-zkvm",
  "serde",
  "time",
  "tokio",
