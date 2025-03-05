@@ -4,12 +4,13 @@ pub mod ttc_contract {
     sol!(
         #[sol(rpc, all_derives)]
         TopTradingCycle,
-        "../contract/out/TopTradingCycle.sol/TopTradingCycle.json"
+        "../../contract/out/TopTradingCycle.sol/TopTradingCycle.json"
     );
 }
 
 use anyhow::{Context, Ok, Result};
 use methods::PROVABLE_TTC_ELF;
+use prover_common::rpc::Proof;
 use risc0_ethereum_contracts::encode_seal;
 use risc0_steel::{
     alloy::{
@@ -21,7 +22,6 @@ use risc0_steel::{
     ethereum::{EthEvmEnv, ETH_SEPOLIA_CHAIN_SPEC},
 };
 use risc0_zkvm::{default_prover, ExecutorEnv, ProverOpts, VerifierContext};
-use serde::{Deserialize, Serialize};
 use tracing::{info, instrument};
 use ttc_contract::TopTradingCycle;
 use url::Url;
@@ -38,12 +38,6 @@ pub struct ProverConfig {
 
 pub struct Prover {
     cfg: ProverConfig,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Proof {
-    pub journal: Vec<u8>,
-    pub seal: Vec<u8>,
 }
 
 impl Prover {

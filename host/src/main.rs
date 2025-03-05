@@ -10,7 +10,7 @@ use proptest::{
     strategy::{Strategy, ValueTree},
     test_runner::TestRunner,
 };
-use prover::rpc::ProverApiClient;
+use prover_common::rpc::ProverApiClient;
 use rand::prelude::SliceRandom;
 use risc0_steel::alloy::{
     network::{Ethereum, EthereumWallet},

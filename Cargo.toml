@@ -39,4 +39,4 @@ risc0-ethereum-contracts = { git = "https://github.com/risc0/risc0-ethereum", ta
 ttc = { path = "ttc" }
 methods = {path = "methods" }
 host = {path = "host" }
-prover = {path = "prover"}
+prover-common = {path = "prover"}

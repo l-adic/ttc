@@ -14,40 +14,61 @@ jobs:
     
     steps:
     - uses: actions/checkout@v4
+
+    - name: Rust Cache
+      uses: Swatinem/rust-cache@v2
+
     # Install Foundry
     - name: Install Foundry
       uses: foundry-rs/foundry-toolchain@v1
       with:
         version: nightly
+
     - name: Install RISC0
       uses: ./.github/actions/install-risc0
       with:
         version: 1.2.4
-    # Start Anvil in the background
-    - name: Start Anvil Node
-      run: anvil &
+
+    # Cache Docker layers
+    - name: Set up Docker cache
+      uses: actions/cache@v3
+      with:
+        path: /tmp/docker-cache
+        key: ${{ runner.os }}-docker-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-docker-
       
-    # Install Rust
-    - name: Install Rust toolchain
-      uses: dtolnay/rust-toolchain@stable
+    # Load Docker cache if exists
+    - name: Load Docker cache
+      run: |
+        if [ -f /tmp/docker-cache/cache.tar ]; then
+          docker load < /tmp/docker-cache/cache.tar
+        fi
       
     # Run mock tests for regular pushes/PRs
     - name: Run node tests with mocks
       if: github.event_name != 'schedule'
       run: |
-          make run-mock-proving-server &
-          make run-node-tests-mock
+        RISC0_DEV_MODE=true docker compose up --build -d
+        sleep 5  # Wait for services to start
+        make run-node-tests-mock
       
     # Run full tests for nightly builds
     - name: Run full node tests
       if: github.event_name == 'schedule'
       run: |
-          make run-proving-server &
-          make run-node-tests
+        RISC0_DEV_MODE=false docker compose up --build -d
+        sleep 5  # Wait for services to start
+        make run-node-tests
+      
+    # Save Docker cache
+    - name: Save Docker cache
+      if: always()
+      run: |
+        mkdir -p /tmp/docker-cache
+        docker save $(docker images -q) > /tmp/docker-cache/cache.tar
       
     # Cleanup
     - name: Cleanup
       if: always()
-      run: |
-        # Kill anvil process
-        pkill anvil || true
+      run: docker compose down

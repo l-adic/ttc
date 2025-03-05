@@ -20,5 +20,4 @@ url.workspace = true
 risc0-steel = { workspace = true, features = ["host"]}
 
 ttc = { workspace = true, features = ["test"] }
-methods.workspace = true
-prover.workspace = true
+prover-common.workspace = true

@@ -4,8 +4,11 @@ use jsonrpsee::{
     server::Server,
     types::{ErrorObject, ErrorObjectOwned},
 };
-use prover::rpc::ProverApiServer;
-use prover_server::env::{init_console_subscriber, Config};
+use prover_common::rpc::{Proof, ProverApiServer};
+use prover_server::{
+    env::{init_console_subscriber, Config},
+    prover,
+};
 use risc0_steel::alloy::primitives::Address;
 use std::net::SocketAddr;
 use tracing::{error, info};
@@ -22,21 +25,21 @@ impl ProverApiImpl {
 }
 
 #[async_trait]
-impl prover::rpc::ProverApiServer for ProverApiImpl {
-    async fn prove(&self, address: Address) -> Result<prover::prover::Proof, ErrorObjectOwned> {
-        let proof: anyhow::Result<prover::prover::Proof> = async {
-            let provider = prover::prover::create_provider(self.node_url.clone());
-            let ttc = prover::prover::ttc_contract::TopTradingCycle::new(address, provider);
+impl ProverApiServer for ProverApiImpl {
+    async fn prove(&self, address: Address) -> Result<Proof, ErrorObjectOwned> {
+        let proof: anyhow::Result<Proof> = async {
+            let provider = prover::create_provider(self.node_url.clone());
+            let ttc = prover::ttc_contract::TopTradingCycle::new(address, provider);
             let phase = ttc.currentPhase().call().await?._0;
             if phase != 2 {
                 anyhow::bail!("TTC contract is not in the trading phase");
             }
             info!("Starting prover for TTC contract at address: {:#}", address);
-            let prover_cfg = prover::prover::ProverConfig {
+            let prover_cfg = prover::ProverConfig {
                 node_url: self.node_url.clone(),
                 ttc: address,
             };
-            let prover = prover::prover::Prover::new(&prover_cfg);
+            let prover = prover::Prover::new(&prover_cfg);
             let proof = prover.prove().await?;
             anyhow::Ok(proof)
         }
@@ -61,7 +64,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Define the server address
     let addr = {
-        let host = "127.0.0.1";
+        let host = "0.0.0.0";
         let addr = format!("{}:{}", host, cli.json_rpc_port);
         addr.parse::<SocketAddr>()
     }?;
