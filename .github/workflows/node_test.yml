@@ -34,12 +34,16 @@ jobs:
     # Run mock tests for regular pushes/PRs
     - name: Run node tests with mocks
       if: github.event_name != 'schedule'
-      run: make run-node-tests-mock
+      run: |
+          make run-mock-proving-server &
+          make run-node-tests-mock
       
     # Run full tests for nightly builds
     - name: Run full node tests
       if: github.event_name == 'schedule'
-      run: make run-node-tests
+      run: |
+          make run-proving-server &
+          make run-node-tests
       
     # Cleanup
     - name: Cleanup

@@ -1,2 +1,2 @@
 pub mod contract;
-pub mod prover;
+pub mod env;

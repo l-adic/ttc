@@ -1,42 +1,49 @@
-use crate::contract::ttc::TopTradingCycle;
+pub mod ttc_contract {
+    use risc0_steel::alloy::sol;
+
+    sol!(
+        #[sol(rpc, all_derives)]
+        TopTradingCycle,
+        "../contract/out/TopTradingCycle.sol/TopTradingCycle.json"
+    );
+}
+
 use anyhow::{Context, Ok, Result};
 use methods::PROVABLE_TTC_ELF;
 use risc0_ethereum_contracts::encode_seal;
 use risc0_steel::{
     alloy::{
-        network::{Ethereum, EthereumWallet},
+        network::Ethereum,
         primitives::Address,
         providers::{Provider, ProviderBuilder},
-        signers::local::PrivateKeySigner,
-        sol_types::SolValue,
         transports::http::{Client, Http},
     },
     ethereum::{EthEvmEnv, ETH_SEPOLIA_CHAIN_SPEC},
 };
 use risc0_zkvm::{default_prover, ExecutorEnv, ProverOpts, VerifierContext};
+use serde::{Deserialize, Serialize};
 use tracing::{info, instrument};
+use ttc_contract::TopTradingCycle;
 use url::Url;
 
-pub fn create_provider(
-    node_url: Url,
-    signer: PrivateKeySigner,
-) -> impl Provider<Http<Client>, Ethereum> + Clone {
-    let wallet = EthereumWallet::from(signer);
-    ProviderBuilder::new()
-        .with_recommended_fillers() // Add recommended fillers for nonce, gas, etc.
-        .wallet(wallet)
-        .on_http(node_url)
+pub fn create_provider(node_url: Url) -> impl Provider<Http<Client>, Ethereum> + Clone {
+    ProviderBuilder::new().on_http(node_url)
 }
 
 #[derive(Clone)]
 pub struct ProverConfig {
     pub node_url: Url,
     pub ttc: Address,
-    pub wallet: PrivateKeySigner,
 }
 
 pub struct Prover {
     cfg: ProverConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Proof {
+    pub journal: Vec<u8>,
+    pub seal: Vec<u8>,
 }
 
 impl Prover {
@@ -45,9 +52,16 @@ impl Prover {
     }
 
     #[instrument(skip_all, level = "info")]
-    pub async fn prove(&self) -> Result<(TopTradingCycle::Journal, Vec<u8>)> {
+    pub async fn prove(&self) -> Result<Proof> {
+        let block_number: u64 = {
+            let provider = create_provider(self.cfg.node_url.clone());
+            let ttc = TopTradingCycle::new(self.cfg.ttc, provider);
+            let bn = ttc.tradeInitiatedAtBlock().call().await?;
+            u64::try_from(bn._0).context("block number is too large")
+        }?;
         let mut env = EthEvmEnv::builder()
             .rpc(self.cfg.node_url.clone())
+            .block_number(block_number)
             .build()
             .await?;
 
@@ -82,15 +96,9 @@ impl Prover {
         .context("failed to create proof")?;
 
         let receipt = prove_info.receipt;
-        let journal = &receipt.journal.bytes;
-
-        // HOLD ONTO YOUR BUTTS, this Journal type better match the one in guest!
-        let journal = TopTradingCycle::Journal::abi_decode(journal, true)
-            .context("Shared journal doesn't match contract journal")?;
-
-        // ABI encode the seal.
         let seal = encode_seal(&receipt).context("invalid receipt")?;
+        let journal = receipt.journal.bytes;
 
-        Ok((journal, seal))
+        Ok(Proof { journal, seal })
     }
 }
