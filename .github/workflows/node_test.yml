@@ -55,11 +55,32 @@ jobs:
     # Build with cache from pulled images
     - name: Build Docker images
       run: |
-        COMPOSE_DOCKER_CLI_BUILD=1 DOCKER_BUILDKIT=1 \
-        docker compose build \
-          --build-arg BUILDKIT_INLINE_CACHE=1 \
+        # Pull cache images
+        docker pull elladic/ttc-prover-server:cache || true
+        docker pull elladic/anvil-node:cache || true
+        
+        # Extract build contexts and Dockerfiles from compose
+        PROVER_CONTEXT="."
+        PROVER_DOCKERFILE="docker/prover-server/Dockerfile"
+        ETH_NODE_CONTEXT="./docker/anvil"
+        ETH_NODE_DOCKERFILE="Dockerfile"
+        
+        # Build images directly with Docker using DockerHub naming
+        DOCKER_BUILDKIT=1 docker build \
+          --tag elladic/ttc-prover-server:local \
           --cache-from elladic/ttc-prover-server:cache \
-          --cache-from elladic/anvil-node:cache
+          --build-arg BUILDKIT_INLINE_CACHE=1 \
+          -f $PROVER_DOCKERFILE $PROVER_CONTEXT
+          
+        DOCKER_BUILDKIT=1 docker build \
+          --tag elladic/anvil-node:local \
+          --cache-from elladic/anvil-node:cache \
+          --build-arg BUILDKIT_INLINE_CACHE=1 \
+          -f $ETH_NODE_DOCKERFILE $ETH_NODE_CONTEXT
+        
+        # Start services with docker compose using the built images
+        echo "PROVER_SERVER_IMAGE=elladic/ttc-prover-server:local" > .env
+        echo "ETHEREUM_NODE_IMAGE=elladic/anvil-node:local" >> .env
     
     # Run mock tests for regular pushes/PRs
     - name: Run node tests with mocks
@@ -87,43 +108,32 @@ jobs:
       if: github.ref == 'refs/heads/main' && (success() || failure())
       continue-on-error: true
       run: |
-        # Get image IDs
-        PROVER_IMAGE_ID=$(docker compose images -q prover-server)
-        ETH_NODE_IMAGE_ID=$(docker compose images -q ethereum-node)
+        # Get short SHA
+        SHA=$(git rev-parse --short HEAD)
         
-        # Only push if images were successfully built
-        if [ ! -z "$PROVER_IMAGE_ID" ]; then
-          # Tag with git SHA for versioning
-          docker tag $PROVER_IMAGE_ID elladic/ttc-prover-server:${{ steps.short_sha.outputs.sha }}
-          docker push elladic/ttc-prover-server:${{ steps.short_sha.outputs.sha }}
-          
-          # Tag as cache for future builds
-          docker tag $PROVER_IMAGE_ID elladic/ttc-prover-server:cache
-          docker push elladic/ttc-prover-server:cache
-        fi
+        # Tag and push prover-server images with SHA and cache tags
+        docker tag elladic/ttc-prover-server:local elladic/ttc-prover-server:$SHA
+        docker push elladic/ttc-prover-server:$SHA
         
-        if [ ! -z "$ETH_NODE_IMAGE_ID" ]; then
-          # Tag with git SHA for versioning
-          docker tag $ETH_NODE_IMAGE_ID elladic/anvil-node:${{ steps.short_sha.outputs.sha }}
-          docker push elladic/anvil-node:${{ steps.short_sha.outputs.sha }}
-          
-          # Tag as cache for future builds
-          docker tag $ETH_NODE_IMAGE_ID elladic/anvil-node:cache
-          docker push elladic/anvil-node:cache
-        fi
+        docker tag elladic/ttc-prover-server:local elladic/ttc-prover-server:cache
+        docker push elladic/ttc-prover-server:cache
+        
+        # Tag and push ethereum-node images with SHA and cache tags
+        docker tag elladic/anvil-node:local elladic/anvil-node:$SHA
+        docker push elladic/anvil-node:$SHA
+        
+        docker tag elladic/anvil-node:local elladic/anvil-node:cache
+        docker push elladic/anvil-node:cache
     
     # Push latest tag only on successful builds from main branch
     - name: Push latest tag
       if: github.ref == 'refs/heads/main' && success()
       run: |
-        PROVER_IMAGE_ID=$(docker compose images -q prover-server)
-        ETH_NODE_IMAGE_ID=$(docker compose images -q ethereum-node)
-        
         # Tag and push latest versions
-        docker tag $PROVER_IMAGE_ID elladic/ttc-prover-server:latest
+        docker tag elladic/ttc-prover-server:local elladic/ttc-prover-server:latest
         docker push elladic/ttc-prover-server:latest
         
-        docker tag $ETH_NODE_IMAGE_ID elladic/anvil-node:latest
+        docker tag elladic/anvil-node:local elladic/anvil-node:latest
         docker push elladic/anvil-node:latest
     
     # Cleanup
