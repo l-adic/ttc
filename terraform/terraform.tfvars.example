@@ -1,0 +1,29 @@
+# Google Cloud Platform Configuration
+gcp_project_id = "your-project-id"
+gcp_region     = "us-central1"
+gcp_zone       = "us-central1-a"
+
+# Network Configuration
+vpc_network_name = "ttc-network"
+
+# Docker Image Configuration
+docker_image_tag = "latest"  # or specific version tag
+anvil_image_repository  = "elladic/anvil-node"
+prover_image_repository = "elladic/ttc-prover-server"
+
+# Anvil Node Configuration
+anvil_machine_type     = "e2-standard-2"  # 2 vCPU, 8GB RAM
+anvil_chain_id        = 31337
+anvil_account_count   = 10
+anvil_account_balance = 100000
+
+# Prover Server Configuration
+prover_cpu_count       = 16    # 16 vCPUs
+prover_memory_gb       = 32    # 32GB RAM
+prover_rust_log_level  = "info"
+prover_risc0_dev_mode  = "true"
+
+# IAP Configuration
+iap_member_list = [
+  "user:your-email@example.com"
+]
