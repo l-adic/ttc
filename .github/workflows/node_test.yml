@@ -59,28 +59,33 @@ jobs:
         docker pull elladic/ttc-prover-server:cache || true
         docker pull elladic/anvil-node:cache || true
         
-        # Extract build contexts and Dockerfiles from compose
-        PROVER_CONTEXT="."
-        PROVER_DOCKERFILE="docker/prover-server/Dockerfile"
-        ETH_NODE_CONTEXT="./docker/anvil"
-        ETH_NODE_DOCKERFILE="Dockerfile"
-        
-        # Build images directly with Docker using DockerHub naming
+        # Build prover-server image
+        echo "Building prover-server image..."
         DOCKER_BUILDKIT=1 docker build \
           --tag elladic/ttc-prover-server:local \
           --cache-from elladic/ttc-prover-server:cache \
           --build-arg BUILDKIT_INLINE_CACHE=1 \
-          -f $PROVER_DOCKERFILE $PROVER_CONTEXT
+          -f docker/prover-server/Dockerfile .
           
+        # Debug: List directory contents to locate Dockerfile
+        echo "Contents of ./docker/anvil:"
+        ls -la ./docker/anvil/
+        
+        # Build anvil-node image
+        echo "Building anvil-node image..."
         DOCKER_BUILDKIT=1 docker build \
           --tag elladic/anvil-node:local \
           --cache-from elladic/anvil-node:cache \
           --build-arg BUILDKIT_INLINE_CACHE=1 \
-          -f $ETH_NODE_DOCKERFILE $ETH_NODE_CONTEXT
+          -f ./docker/anvil/Dockerfile ./docker/anvil
         
         # Start services with docker compose using the built images
+        echo "Creating .env file with image references..."
         echo "PROVER_SERVER_IMAGE=elladic/ttc-prover-server:local" > .env
         echo "ETHEREUM_NODE_IMAGE=elladic/anvil-node:local" >> .env
+        
+        echo "Contents of .env file:"
+        cat .env
     
     # Run mock tests for regular pushes/PRs
     - name: Run node tests with mocks
