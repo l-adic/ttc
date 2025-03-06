@@ -29,19 +29,13 @@ variable "docker_image_tag" {
   type        = string
 }
 
+# Anvil Node Configuration
 variable "anvil_image_repository" {
   description = "Docker image repository for Anvil node"
   type        = string
   default     = "elladic/anvil-node"
 }
 
-variable "prover_image_repository" {
-  description = "Docker image repository for Prover server"
-  type        = string
-  default     = "elladic/ttc-prover-server"
-}
-
-# Anvil Node Configuration
 variable "anvil_machine_type" {
   description = "GCP machine type for Anvil node"
   type        = string
@@ -67,10 +61,16 @@ variable "anvil_account_balance" {
 }
 
 # Prover Server Configuration
+variable "prover_image_repository" {
+  description = "Docker image repository for Prover server"
+  type        = string
+  default     = "elladic/ttc-prover-server"
+}
+
 variable "prover_cpu_count" {
   description = "Number of CPUs for Prover server"
   type        = number
-  default     = 16
+  default     = 8  # Maximum allowed in Cloud Run
 }
 
 variable "prover_memory_gb" {
@@ -89,6 +89,12 @@ variable "prover_risc0_dev_mode" {
   description = "Enable RISC0 development mode for Prover server"
   type        = string
   default     = "true"
+}
+
+variable "prover_port" {
+  description = "Port for the Prover server JSON-RPC endpoint"
+  type        = number
+  default     = 8546
 }
 
 # IAP Configuration
