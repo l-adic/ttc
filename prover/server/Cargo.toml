@@ -3,6 +3,10 @@ name = "prover-server"
 version.workspace = true
 edition.workspace = true
 
+[features]
+default = []
+cuda = ["risc0-zkvm/cuda"]
+
 [dependencies]
 
 anyhow.workspace = true
