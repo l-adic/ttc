@@ -1,5 +1,8 @@
+version: '3.8'
+
 services:
   ethereum-node:
+    image: ${ETHEREUM_NODE_IMAGE:-}
     build:
       context: ./docker/anvil
       dockerfile: Dockerfile
@@ -16,8 +19,9 @@ services:
       --chain-id ${CHAIN_ID:-31337}
       --accounts ${ACCOUNTS:-10}
       --balance ${BALANCE:-100000}
-
+      
   prover-server:
+    image: ${PROVER_SERVER_IMAGE:-}
     build:
       context: .
       dockerfile: docker/prover-server/Dockerfile

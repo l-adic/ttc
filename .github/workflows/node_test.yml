@@ -13,12 +13,12 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
+    - name: Checkout code
+      uses: actions/checkout@v4
 
     - name: Rust Cache
       uses: Swatinem/rust-cache@v2
 
-    # Install Foundry
     - name: Install Foundry
       uses: foundry-rs/foundry-toolchain@v1
       with:
@@ -28,46 +28,119 @@ jobs:
       uses: ./.github/actions/install-risc0
       with:
         version: 1.2.4
-
-    # Cache Docker layers
-    - name: Set up Docker cache
-      uses: actions/cache@v3
+    
+    # Login to DockerHub with access token
+    - name: Login to DockerHub
+      uses: docker/login-action@v3
       with:
-        path: /tmp/docker-cache
-        key: ${{ runner.os }}-docker-${{ github.sha }}
-        restore-keys: |
-          ${{ runner.os }}-docker-
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_TOKEN }}
+    
+    # Set up Docker and Docker Compose
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
       
-    # Load Docker cache if exists
-    - name: Load Docker cache
+    - name: Set up Docker Compose
+      uses: ndeloof/install-compose-action@v0.0.1
+      with:
+        version: v2.23.3  # Specify a recent version that supports --cache-from
+    
+    # Try to pull cache images (with separate tags for cache)
+    - name: Pull cache images
+      continue-on-error: true  # Continue even if images don't exist yet
       run: |
-        if [ -f /tmp/docker-cache/cache.tar ]; then
-          docker load < /tmp/docker-cache/cache.tar
-        fi
-      
+        docker pull elladic/ttc-prover-server:cache || true
+        docker pull elladic/anvil-node:cache || true
+    
+    # Build with cache from pulled images
+    - name: Build Docker images
+      run: |
+        # Pull cache images
+        docker pull elladic/ttc-prover-server:cache || true
+        docker pull elladic/anvil-node:cache || true
+        
+        # Build prover-server image
+        echo "Building prover-server image..."
+        DOCKER_BUILDKIT=1 docker build \
+          --tag elladic/ttc-prover-server:local \
+          --cache-from elladic/ttc-prover-server:cache \
+          --build-arg BUILDKIT_INLINE_CACHE=1 \
+          -f docker/prover-server/Dockerfile .
+          
+        # Debug: List directory contents to locate Dockerfile
+        echo "Contents of ./docker/anvil:"
+        ls -la ./docker/anvil/
+        
+        # Build anvil-node image
+        echo "Building anvil-node image..."
+        DOCKER_BUILDKIT=1 docker build \
+          --tag elladic/anvil-node:local \
+          --cache-from elladic/anvil-node:cache \
+          --build-arg BUILDKIT_INLINE_CACHE=1 \
+          -f ./docker/anvil/Dockerfile ./docker/anvil
+        
+        # Start services with docker compose using the built images
+        echo "Creating .env file with image references..."
+        echo "PROVER_SERVER_IMAGE=elladic/ttc-prover-server:local" > .env
+        echo "ETHEREUM_NODE_IMAGE=elladic/anvil-node:local" >> .env
+        
+        echo "Contents of .env file:"
+        cat .env
+    
     # Run mock tests for regular pushes/PRs
     - name: Run node tests with mocks
       if: github.event_name != 'schedule'
       run: |
-        RISC0_DEV_MODE=true docker compose up --build -d
+        RISC0_DEV_MODE=true docker compose up -d
         sleep 5  # Wait for services to start
         make run-node-tests-mock
-      
+    
     # Run full tests for nightly builds
     - name: Run full node tests
       if: github.event_name == 'schedule'
       run: |
-        RISC0_DEV_MODE=false docker compose up --build -d
+        RISC0_DEV_MODE=false docker compose up -d
         sleep 5  # Wait for services to start
         make run-node-tests
-      
-    # Save Docker cache
-    - name: Save Docker cache
-      if: always()
+    
+    # Get short git SHA for tagging
+    - name: Get short SHA
+      id: short_sha
+      run: echo "sha=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+    
+    # Push versioned and cache images
+    - name: Push images
+      if: github.ref == 'refs/heads/main' && (success() || failure())
+      continue-on-error: true
       run: |
-        mkdir -p /tmp/docker-cache
-        docker save $(docker images -q) > /tmp/docker-cache/cache.tar
-      
+        # Get short SHA
+        SHA=$(git rev-parse --short HEAD)
+        
+        # Tag and push prover-server images with SHA and cache tags
+        docker tag elladic/ttc-prover-server:local elladic/ttc-prover-server:$SHA
+        docker push elladic/ttc-prover-server:$SHA
+        
+        docker tag elladic/ttc-prover-server:local elladic/ttc-prover-server:cache
+        docker push elladic/ttc-prover-server:cache
+        
+        # Tag and push ethereum-node images with SHA and cache tags
+        docker tag elladic/anvil-node:local elladic/anvil-node:$SHA
+        docker push elladic/anvil-node:$SHA
+        
+        docker tag elladic/anvil-node:local elladic/anvil-node:cache
+        docker push elladic/anvil-node:cache
+    
+    # Push latest tag only on successful builds from main branch
+    - name: Push latest tag
+      if: github.ref == 'refs/heads/main' && success()
+      run: |
+        # Tag and push latest versions
+        docker tag elladic/ttc-prover-server:local elladic/ttc-prover-server:latest
+        docker push elladic/ttc-prover-server:latest
+        
+        docker tag elladic/anvil-node:local elladic/anvil-node:latest
+        docker push elladic/anvil-node:latest
+    
     # Cleanup
     - name: Cleanup
       if: always()
