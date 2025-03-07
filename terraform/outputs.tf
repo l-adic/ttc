@@ -26,13 +26,18 @@ output "anvil_instance_name" {
 }
 
 # Prover Server outputs
-output "prover_server_url" {
-  description = "URL of the Cloud Run service"
-  value       = google_cloud_run_v2_service.prover_server.uri
+output "prover_server_cpu_url" {
+  description = "URL of the CPU-only Cloud Run service"
+  value       = google_cloud_run_v2_service.prover_server_cpu.uri
+}
+
+output "prover_server_gpu_url" {
+  description = "URL of the GPU-enabled Cloud Run service"
+  value       = var.enable_gpu_prover ? google_cloud_run_v2_service.prover_server_gpu[0].uri : "GPU prover not enabled"
 }
 
 output "prover_server_port" {
-  description = "Port for the Prover server"
+  description = "Port for the Prover servers"
   value       = "8546"
 }
 
@@ -52,12 +57,16 @@ To connect to the services:
    gcloud compute start-iap-tunnel ${google_compute_instance_group_manager.ethereum_node.base_instance_name}-xxxx 8545 --local-host-port=localhost:8545 --zone=${var.gcp_zone}
    (Note: Get the full instance name by running the command in step 4)
 
-   Terminal 2 (Prover Server):
-   gcloud run services proxy prover-server --port=8546 --region=${var.gcp_region}
+   Terminal 2 (CPU Prover Server):
+   gcloud run services proxy prover-server-cpu --port=8546 --region=${var.gcp_region}
+
+   Terminal 3 (GPU Prover Server, if enabled):
+   gcloud run services proxy prover-server-gpu --port=8547 --region=${var.gcp_region}
 
 3. You can now access:
    - Anvil Node at http://localhost:8545
-   - Prover Server at http://localhost:8546
+   - CPU Prover Server at http://localhost:8546
+   - GPU Prover Server at http://localhost:8547 (if enabled)
 
 4. To get the actual Anvil instance name, run:
    gcloud compute instances list --filter="name~'${google_compute_instance_group_manager.ethereum_node.base_instance_name}'" --zones=${var.gcp_zone}

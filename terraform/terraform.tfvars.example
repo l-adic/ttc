@@ -7,7 +7,11 @@ gcp_zone       = "us-central1-a"
 vpc_network_name = "ttc-network"
 
 # Docker Image Configuration
-docker_image_tag = "latest"  # Replace with your desired tag
+# CPU-only images
+docker_image_tag = "latest"  # Tag for non-GPU images (anvil and prover)
+
+# GPU-enabled images
+docker_cuda_image_tag = "latest-cuda"  # Tag for GPU-enabled prover
 
 # Anvil Node Configuration
 anvil_image_repository  = "elladic/anvil-node"
@@ -17,11 +21,19 @@ anvil_account_count   = 10
 anvil_account_balance = 100000
 
 # Prover Server Configuration
+# CPU-only prover
 prover_image_repository = "elladic/ttc-prover-server"
+
+# GPU-enabled prover
+prover_cuda_image_repository = "elladic/ttc-prover-server-cuda"
+enable_gpu_prover           = true    # Set to false to disable GPU-enabled prover
+gpu_count                   = 1       # 1-2 GPUs supported in Cloud Run (requires quota)
+
+# Common prover settings
 prover_cpu_count       = 8     # Maximum allowed in Cloud Run
 prover_memory_gb       = 32    # Memory in GB
 prover_rust_log_level  = "info"
-prover_risc0_dev_mode  = "true"
+prover_risc0_dev_mode  = "false"
 prover_port            = 8546
 
 # IAP Configuration - Add your email to access the services

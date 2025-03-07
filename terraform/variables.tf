@@ -25,7 +25,12 @@ variable "vpc_network_name" {
 
 # Docker Image Configuration
 variable "docker_image_tag" {
-  description = "Tag for Docker images (e.g., latest, v1.0.0)"
+  description = "Tag for non-GPU Docker images (e.g., latest, v1.0.0)"
+  type        = string
+}
+
+variable "docker_cuda_image_tag" {
+  description = "Tag for GPU-enabled Docker images (e.g., latest-cuda, v1.0.0-cuda)"
   type        = string
 }
 
@@ -65,6 +70,29 @@ variable "prover_image_repository" {
   description = "Docker image repository for Prover server"
   type        = string
   default     = "elladic/ttc-prover-server"
+}
+
+variable "prover_cuda_image_repository" {
+  description = "Docker image repository for GPU-enabled Prover server"
+  type        = string
+  default     = "elladic/ttc-prover-server-cuda"
+}
+
+variable "enable_gpu_prover" {
+  description = "Enable GPU-accelerated prover server"
+  type        = bool
+  default     = true
+}
+
+# GPU Configuration
+variable "gpu_count" {
+  description = "Number of GPUs to attach to the GPU-enabled prover (1-2 for Cloud Run)"
+  type        = number
+  default     = 1
+  validation {
+    condition     = var.gpu_count >= 1 && var.gpu_count <= 2
+    error_message = "GPU count must be between 1 and 2 for Cloud Run"
+  }
 }
 
 variable "prover_cpu_count" {
