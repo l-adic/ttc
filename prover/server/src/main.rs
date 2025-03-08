@@ -32,7 +32,10 @@ impl ProverApiServer for ProverApiImpl {
             let ttc = prover::ttc_contract::TopTradingCycle::new(address, provider);
             let phase = ttc.currentPhase().call().await?._0;
             if phase != 2 {
-                anyhow::bail!("TTC contract is not in the trading phase");
+                anyhow::bail!(
+                    "TTC contract is not in the trading phase, current phase is {}",
+                    phase
+                );
             }
             info!("Starting prover for TTC contract at address: {:#}", address);
             let prover_cfg = prover::ProverConfig {
