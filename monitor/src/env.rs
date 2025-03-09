@@ -38,6 +38,24 @@ impl DB {
             .await?;
         Ok(Self { pool })
     }
+
+    pub async fn new_from_environment() -> Result<Self> {
+        let db_config = {
+            let host = std::env::var("DB_HOST")?;
+            let port = std::env::var("DB_PORT")?.parse()?;
+            let user = std::env::var("DB_USER")?;
+            let password = std::env::var("DB_PASSWORD")?;
+            let dbname = std::env::var("DB_NAME")?;
+            Ok(DBConfig {
+                host,
+                port,
+                user,
+                password,
+                dbname,
+            })
+        }?;
+        Self::new(db_config).await
+    }
 }
 
 pub fn init_console_subscriber() {
@@ -56,29 +74,4 @@ pub fn init_console_subscriber() {
         .with_ansi(true)
         .with_writer(std::io::stdout)
         .init();
-}
-
-pub struct Env {
-    pub db: DB,
-}
-
-impl Env {
-    pub async fn new_from_environment() -> Result<Self> {
-        let db_config = {
-            let host = std::env::var("DB_HOST")?;
-            let port = std::env::var("DB_PORT")?.parse()?;
-            let user = std::env::var("DB_USER")?;
-            let password = std::env::var("DB_PASSWORD")?;
-            let dbname = std::env::var("DB_NAME")?;
-            Ok(DBConfig {
-                host,
-                port,
-                user,
-                password,
-                dbname,
-            })
-        }?;
-        let db = DB::new(db_config).await?;
-        Ok(Self { db })
-    }
 }

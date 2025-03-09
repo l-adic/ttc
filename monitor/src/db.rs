@@ -39,65 +39,6 @@ pub struct Database {
 impl Database {
     pub async fn new(database_url: &str) -> Result<Self, sqlx::Error> {
         let pool = PgPool::connect(database_url).await?;
-
-        // Create ENUM type
-        sqlx::query(
-            r#"
-            DO $$ BEGIN
-                IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'job_status') THEN
-                    CREATE TYPE job_status AS ENUM (
-                        'created',
-                        'in_progress',
-                        'completed',
-                        'errored'
-                    );
-                END IF;
-            END $$;
-        "#,
-        )
-        .execute(&pool)
-        .await?;
-
-        // Create Jobs table
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS jobs (
-                address BYTEA PRIMARY KEY,
-                block_number BIGINT NOT NULL,
-                block_timestamp TIMESTAMPTZ NOT NULL,
-                status job_status NOT NULL,
-                error TEXT,
-                completed_at TIMESTAMPTZ
-            )
-        "#,
-        )
-        .execute(&pool)
-        .await?;
-
-        // Create indexes
-        sqlx::query(
-            r#"
-            CREATE INDEX IF NOT EXISTS idx_jobs_block_number ON jobs (block_number);
-            CREATE INDEX IF NOT EXISTS idx_jobs_block_timestamp ON jobs (block_timestamp);
-            CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs (status);
-        "#,
-        )
-        .execute(&pool)
-        .await?;
-
-        // Create Proofs table
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS proofs (
-                address BYTEA PRIMARY KEY,
-                proof BYTEA NOT NULL,
-                seal BYTEA NOT NULL
-            )
-        "#,
-        )
-        .execute(&pool)
-        .await?;
-
         Ok(Self { pool })
     }
 

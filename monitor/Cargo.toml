@@ -19,3 +19,11 @@ tokio-stream.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 url.workspace = true
+
+[[bin]]
+name = "create-db"
+path = "bin/create_db.rs"  
+
+[[bin]]
+name = "create-schema"
+path = "bin/create_schema.rs"  
