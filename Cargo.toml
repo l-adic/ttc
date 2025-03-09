@@ -16,15 +16,16 @@ edition = "2021"
 [workspace.dependencies]
 alloy = "0.9.2"
 anyhow = "1.0"
+chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.4", features = ["derive"] }
 futures = "0.3"
 itertools = "0.14.0"
 jsonrpsee = "0.22"
 petgraph = { version = "0.7.1", default-features = false }
 proptest = "1.6.0"
-serde = "1.0"
+serde = {version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-sqlx = { version = "0.7", features = ["postgres", "runtime-tokio", "tls-rustls"] }
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "tls-rustls", "macros", "chrono", "uuid"] }
 thiserror = "2.0"
 time = { version = "0.3", features = ["macros"] }
 tokio = { version = "1.35", features = ["full"] }
