@@ -1,7 +1,9 @@
 use anyhow::Result;
+use futures::{future, StreamExt};
 use serde::de::DeserializeOwned;
 use sqlx::{postgres::PgListener, PgPool};
-use std::time::Duration;
+use tokio::sync::mpsc;
+use tracing::{error, span, Level};
 
 #[derive(Clone)]
 pub struct TypedChannel<T> {
@@ -19,50 +21,75 @@ impl<T> TypedChannel<T> {
 }
 
 pub struct PgNotifier<T> {
-    notifications: tokio::sync::mpsc::UnboundedReceiver<T>,
+    notifications: mpsc::UnboundedReceiver<T>,
 }
 
 impl<T: DeserializeOwned + Send + 'static> PgNotifier<T> {
     pub async fn new(pool: &PgPool, channel: TypedChannel<T>) -> Result<Self> {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         let mut listener = PgListener::connect_with(pool).await?;
-
         listener.listen(&channel.channel_name).await?;
 
+        // Create a span for the entire listener task
+        let listener_span = span!(
+            Level::INFO,
+            "pg_listener",
+            channel = %channel.channel_name
+        );
+
         tokio::spawn(async move {
-            loop {
-                match listener.try_recv().await {
-                    Ok(Some(notification)) => {
-                        match serde_json::from_str::<T>(notification.payload()) {
-                            Ok(data) => {
-                                if let Err(e) = tx.send(data) {
-                                    eprintln!("[ListenerTask] Failed to forward: {:?}", e);
-                                    break;
+            listener
+                .into_stream()
+                .filter_map(|message| {
+                    let span = span!(
+                        parent: &listener_span,
+                        Level::DEBUG,
+                        "pg_notification",
+                        error = tracing::field::Empty
+                    );
+                    match message {
+                        Ok(notification) => {
+                            match serde_json::from_str::<T>(notification.payload()) {
+                                Ok(data) => future::ready(Some(data)),
+                                Err(e) => {
+                                    error!(
+                                        parent: &span,
+                                        error = %e,
+                                        "Deserialization error"
+                                    );
+                                    future::ready(None)
                                 }
                             }
-                            Err(e) => {
-                                eprintln!("[ListenerTask] Deserialization error: {}", e);
-                            }
+                        }
+                        Err(e) => {
+                            error!(
+                                parent: &span,
+                                error = %e,
+                                "Error receiving notification"
+                            );
+                            future::ready(None)
                         }
                     }
-                    Ok(None) => {
-                        eprintln!("[ListenerTask] No notification available");
+                })
+                .for_each(|t| {
+                    let tx = tx.clone();
+                    async move {
+                        let span = span!(Level::DEBUG, "send_notification");
+                        if let Err(e) = tx.send(t) {
+                            error!(
+                                parent: &span,
+                                error = %e,
+                                "Failed to send notification"
+                            );
+                        }
                     }
-                    Err(e) => {
-                        eprintln!("[ListenerTask] Error receiving notification: {}", e);
-
-                        // Small delay before retry
-                        tokio::time::sleep(Duration::from_millis(100)).await;
-                    }
-                }
-            }
-
-            eprintln!("[ListenerTask] Listener task terminated");
+                })
+                .await
         });
         Ok(Self { notifications: rx })
     }
 
-    pub fn subscribe(self) -> tokio::sync::mpsc::UnboundedReceiver<T> {
+    pub fn subscribe(self) -> mpsc::UnboundedReceiver<T> {
         self.notifications
     }
 }
@@ -70,7 +97,7 @@ impl<T: DeserializeOwned + Send + 'static> PgNotifier<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::env::{DBConfig, DB};
+    use crate::env::{self, DBConfig, DB};
     use sqlx::PgPool;
     use std::time::Duration;
 
@@ -94,6 +121,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_sqlx_notify() -> Result<()> {
+        env::init_console_subscriber();
         eprintln!("[TEST] Starting SQLx notification test");
 
         let db = {
