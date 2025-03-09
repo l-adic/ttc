@@ -1,10 +1,13 @@
 use std::env;
 
+use tracing::info;
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    monitor::env::init_console_subscriber();
     let conn = monitor::env::DB::new_from_environment().await?.pool;
     let db_name = env::var("DB_CREATE_NAME")?;
-    println!("Creating database '{}'", db_name);
+    info!("Creating database '{}'", db_name);
 
     // Check if database exists
     let exists: bool =
@@ -14,7 +17,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .await?;
 
     if exists {
-        println!("Database '{}' already exists.", db_name);
+        info!("Database '{}' already exists.", db_name);
         return Ok(());
     }
 
@@ -23,7 +26,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .execute(&conn)
         .await?;
 
-    println!("Database '{}' created successfully.", db_name);
+    info!("Database '{}' created successfully.", db_name);
 
     Ok(())
 }

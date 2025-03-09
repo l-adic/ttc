@@ -1,5 +1,7 @@
 use anyhow::Result;
+use monitor::env;
 use sqlx::{Executor, PgPool};
+use tracing::info;
 
 async fn create_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
     // Create ENUM type
@@ -58,22 +60,23 @@ async fn create_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
     ))
     .await?;
 
-    println!("Schema created successfully for database");
+    info!("Schema created successfully for database");
 
     Ok(())
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    env::init_console_subscriber();
     let db = monitor::env::DB::new_from_environment().await?;
 
     match create_schema(&db.pool).await {
         Ok(_) => {
-            println!("Database schema setup completed successfully.");
+            info!("Database schema setup completed successfully.");
             Ok(())
         }
         Err(e) => {
-            eprintln!("Error setting up database schema: {}", e);
+            tracing::error!("Error setting up database schema: {}", e);
             Err(e.into())
         }
     }
