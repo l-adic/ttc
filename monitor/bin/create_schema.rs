@@ -37,9 +37,11 @@ async fn create_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
     // Create indexes
     pool.execute(sqlx::query(
         r#"
-        CREATE INDEX IF NOT EXISTS idx_jobs_block_number ON jobs (block_number);
-        CREATE INDEX IF NOT EXISTS idx_jobs_block_timestamp ON jobs (block_timestamp);
-        CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs (status);
+        DO $$ BEGIN
+            CREATE INDEX IF NOT EXISTS idx_jobs_block_number ON jobs (block_number);
+            CREATE INDEX IF NOT EXISTS idx_jobs_block_timestamp ON jobs (block_timestamp);
+            CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs (status);
+        END $$;
     "#,
     ))
     .await?;

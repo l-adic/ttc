@@ -3,7 +3,8 @@ use std::env;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let conn = monitor::env::DB::new_from_environment().await?.pool;
-    let db_name = env::var("DB_NAME")?;
+    let db_name = env::var("DB_CREATE_NAME")?;
+    println!("Creating database '{}'", db_name);
 
     // Check if database exists
     let exists: bool =

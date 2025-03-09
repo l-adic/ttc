@@ -1,4 +1,6 @@
-.PHONY: build-methods build-contracts build-prover build-host build test clean lint fmt check all run-proving-server run-mock-proving-server run-node-tests run-node-tests-mock help
+.PHONY: build-methods build-contracts build-prover build-host build test clean 
+	lint fmt check all run-proving-server run-mock-proving-server 
+	run-node-tests run-node-tests-mock create-db create-schema help
 
 .DEFAULT_GOAL := help
 
@@ -57,3 +59,21 @@ run-node-tests: build-host ## Run node tests with real RISC0
 		--max-actors 3 \
 		--chain-id 31337 \
 		--owner-key 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+
+create-db: ## Create the database
+	DB_HOST=localhost \
+		DB_PORT=5432 \
+		DB_USER=postgres \
+		DB_PASSWORD=postgres \
+		DB_NAME=postgres \
+		DB_CREATE_NAME=ttc \
+		cargo run --release --bin create-db
+
+
+create-schema: ## Create the database schema (Must setup the database first via create-db)
+	DB_HOST=localhost \
+		DB_PORT=5432 \
+		DB_USER=postgres \
+		DB_PASSWORD=postgres \
+		DB_NAME=ttc \
+		cargo run  --release --bin create-schema
