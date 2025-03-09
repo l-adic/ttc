@@ -1,0 +1,19 @@
+[package]
+name = "monitor"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+alloy.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+futures.workspace = true
+jsonrpsee = {workspace = true, features = ["client", "macros", "server"]}
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+url.workspace = true
