@@ -1,3 +1,8 @@
+use alloy::{
+    network::Ethereum,
+    providers::{Provider, ProviderBuilder},
+    transports::http::{Client, Http},
+};
 use anyhow::{Ok, Result};
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use time::macros::format_description;
@@ -5,6 +10,7 @@ use tracing_subscriber::{
     fmt::{format::FmtSpan, time::UtcTime},
     EnvFilter,
 };
+use url::Url;
 
 #[derive(Clone)]
 pub struct DBConfig {
@@ -74,4 +80,8 @@ pub fn init_console_subscriber() {
         .with_ansi(true)
         .with_writer(std::io::stdout)
         .init();
+}
+
+pub fn create_provider(node_url: Url) -> impl Provider<Http<Client>, Ethereum> + Clone {
+    ProviderBuilder::new().on_http(node_url)
 }
