@@ -263,6 +263,7 @@ struct TestSetup {
     owner: PrivateKeySigner,
     actors: Vec<Actor>,
     prover: HttpClient,
+    monitor: HttpClient,
 }
 
 fn make_token_preferences(
@@ -296,6 +297,7 @@ impl TestSetup {
             actor::create_actors(config.clone(), ttc, owner.clone(), prefs).await
         }?;
         let prover = HttpClientBuilder::default().build(config.prover_url.clone())?;
+        let monitor = HttpClientBuilder::default().build(config.monitor_url.clone())?;
         Ok(Self {
             config: config.clone(),
             node_url: config.node_url.clone(),
@@ -303,6 +305,7 @@ impl TestSetup {
             owner,
             actors,
             prover,
+            monitor,
         })
     }
 
@@ -479,6 +482,8 @@ async fn run_test_case(config: Config, p: Preferences<U256>) -> Result<()> {
         let provider = create_provider(config.node_url.clone(), setup.owner.clone());
         TopTradingCycle::new(setup.ttc, provider)
     };
+    info!("Sending request to watch the contract");
+    monitor_common::rpc::ProverApiClient::watch_contract(&setup.monitor, *ttc.address()).await?;
     info!("Depositing tokens to contract");
     setup.deposit_tokens().await?;
     info!("Advancing phase to Rank");
@@ -556,6 +561,9 @@ struct Config {
 
     #[arg(long, default_value = "http://localhost:8546")]
     prover_url: Url,
+
+    #[arg(long, default_value = "http://localhost:8547")]
+    monitor_url: Url,
 
     #[arg(long, default_value_t = 10)]
     max_actors: usize,

@@ -1,5 +1,4 @@
 use anyhow::Result;
-use monitor::env;
 use sqlx::{Executor, PgPool};
 use tracing::info;
 
@@ -60,16 +59,49 @@ async fn create_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
     ))
     .await?;
 
-    info!("Schema created successfully for database");
+    // Create trigger function for notifications
+    pool.execute(sqlx::query(
+        r#"
+        CREATE OR REPLACE FUNCTION notify_job_status_change()
+        RETURNS TRIGGER AS $$
+        BEGIN
+            IF (NEW.status = 'completed' OR NEW.status = 'errored') AND 
+               (OLD.status != 'completed' AND OLD.status != 'errored') THEN
+                -- Convert BYTEA to hex string for the notification
+                PERFORM pg_notify('job_channel', encode(NEW.address, 'hex'));
+            END IF;
+            RETURN NEW;
+        END;
+        $$ LANGUAGE plpgsql;
+        "#,
+    ))
+    .await?;
 
+    pool.execute(sqlx::query(
+        r#"
+        DO $$ 
+        BEGIN
+            -- Drop the trigger if it exists
+            DROP TRIGGER IF EXISTS job_status_change_trigger ON jobs;
+            
+            -- Create the trigger
+            CREATE TRIGGER job_status_change_trigger
+            AFTER UPDATE OF status ON jobs
+            FOR EACH ROW
+            EXECUTE FUNCTION notify_job_status_change();
+        END $$;
+        "#,
+    ))
+    .await?;
+
+    info!("Schema created successfully for database");
     Ok(())
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    env::init_console_subscriber();
-    let db = monitor::env::DB::new_from_environment().await?;
-
+    monitor_server::app_env::init_console_subscriber();
+    let db = monitor_server::app_env::DB::new_from_environment().await?;
     match create_schema(&db.pool).await {
         Ok(_) => {
             info!("Database schema setup completed successfully.");

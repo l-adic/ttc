@@ -58,6 +58,10 @@ impl ProverApiServer for ProverApiImpl {
             }
         }
     }
+
+    async fn prove_async(&self, _: Address) -> Result<(), ErrorObjectOwned> {
+        Ok(())
+    }
 }
 
 #[tokio::main]

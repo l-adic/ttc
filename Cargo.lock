@@ -2558,6 +2558,7 @@ dependencies = [
  "clap",
  "futures",
  "jsonrpsee",
+ "monitor-common",
  "proptest",
  "prover-common",
  "rand",
@@ -3444,7 +3445,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "monitor"
+name = "monitor-common"
+version = "0.1.0"
+dependencies = [
+ "alloy",
+ "futures",
+ "hex",
+ "jsonrpsee",
+ "serde",
+]
+
+[[package]]
+name = "monitor-server"
 version = "0.1.0"
 dependencies = [
  "alloy",
@@ -3453,6 +3465,8 @@ dependencies = [
  "clap",
  "futures",
  "jsonrpsee",
+ "monitor-common",
+ "prover-common",
  "serde",
  "serde_json",
  "sqlx",

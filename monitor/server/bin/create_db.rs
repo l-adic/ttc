@@ -4,8 +4,10 @@ use tracing::info;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    monitor::env::init_console_subscriber();
-    let conn = monitor::env::DB::new_from_environment().await?.pool;
+    monitor_server::app_env::init_console_subscriber();
+    let conn = monitor_server::app_env::DB::new_from_environment()
+        .await?
+        .pool;
     let db_name = env::var("DB_CREATE_NAME")?;
     info!("Creating database '{}'", db_name);
 

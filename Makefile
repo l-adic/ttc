@@ -22,6 +22,9 @@ build-contracts: build-methods ## Build smart contracts (requires guest)
 build-prover: build-contracts
 	cargo build -p prover-server --release
 
+build-monitor: build-contracts
+	cargo build -p monitor-server --release
+
 build-host: build-contracts ## Build the RISC Zero host program
 	cargo build -p host --release
 
@@ -67,6 +70,7 @@ create-db: ## Create the database
 		DB_PASSWORD=postgres \
 		DB_NAME=postgres \
 		DB_CREATE_NAME=ttc \
+		RUST_LOG=debug \
 		cargo run --release --bin create-db
 
 
@@ -76,4 +80,5 @@ create-schema: ## Create the database schema (Must setup the database first via 
 		DB_USER=postgres \
 		DB_PASSWORD=postgres \
 		DB_NAME=ttc \
+		RUST_LOG=debug \
 		cargo run  --release --bin create-schema

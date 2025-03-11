@@ -5,6 +5,7 @@ members = [
     "host", 
     "methods",
     "monitor",
+    "monitor/server",
     "prover",
     "prover/server"
   ]
@@ -17,8 +18,9 @@ edition = "2021"
 alloy = "0.9.2"
 anyhow = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
-clap = { version = "4.4", features = ["derive"] }
+clap = { version = "4.4", features = ["derive", "env"] }
 futures = "0.3"
+hex = "0.4"
 itertools = "0.14.0"
 jsonrpsee = "0.22"
 petgraph = { version = "0.7.1", default-features = false }
@@ -45,4 +47,5 @@ risc0-ethereum-contracts = { git = "https://github.com/risc0/risc0-ethereum", ta
 ttc = { path = "ttc" }
 methods = {path = "methods" }
 host = {path = "host" }
+monitor-common = {path = "monitor"}
 prover-common = {path = "prover"}

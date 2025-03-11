@@ -21,3 +21,4 @@ risc0-steel = { workspace = true, features = ["host"]}
 
 ttc = { workspace = true, features = ["test"] }
 prover-common.workspace = true
+monitor-common.workspace = true

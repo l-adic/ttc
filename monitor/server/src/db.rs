@@ -32,14 +32,18 @@ pub struct Proof {
 }
 
 // Database management struct
+#[derive(Clone)]
 pub struct Database {
     pool: PgPool,
 }
 
 impl Database {
-    pub async fn new(database_url: &str) -> Result<Self, sqlx::Error> {
-        let pool = PgPool::connect(database_url).await?;
-        Ok(Self { pool })
+    pub async fn new(pool: PgPool) -> Self {
+        Self { pool }
+    }
+
+    pub fn pool(&self) -> PgPool {
+        self.pool.clone()
     }
 
     // Job-specific methods
