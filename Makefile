@@ -79,7 +79,7 @@ OWNER_KEY ?= 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 MOCK_VERIFIER ?= false
 RISC0_DEV_MODE ?= true
 
-run-node-tests-mock: ## Run node tests with mock verifier
+run-node-tests-mock: build-contracts ## Run node tests with mock verifier
 	RUST_LOG=info \
 	NODE_HOST=$(NODE_HOST) \
 	NODE_PORT=$(NODE_PORT) \
@@ -91,7 +91,7 @@ run-node-tests-mock: ## Run node tests with mock verifier
 		--owner-key $(OWNER_KEY) \
 		--mock-verifier
 
-run-node-tests: ## Run node tests with real verifier
+run-node-tests: build-contracts ## Run node tests with real verifier
 	RUST_LOG=info \
 	NODE_HOST=$(NODE_HOST) \
 	NODE_PORT=$(NODE_PORT) \
@@ -121,7 +121,7 @@ create-schema: ## Create the database schema (Must setup the database first via 
 	RUST_LOG=debug \
 	cargo run --release --bin create-schema
 
-run-prover-server: build-prover ## Run the prover server
+run-prover-server: build-contracts ## Run the prover server
 	RUST_LOG=info \
 	DB_HOST=$(DB_HOST) \
 	DB_PORT=$(DB_PORT) \
@@ -134,7 +134,7 @@ run-prover-server: build-prover ## Run the prover server
     RISC0_DEV_MODE=${RISC0_DEV_MODE} \
 	cargo run --bin prover-server --release
 
-run-monitor-server: build-monitor ## Run the monitor server
+run-monitor-server: build-contracts ## Run the monitor server
 	RUST_LOG=info \
 	DB_HOST=$(DB_HOST) \
 	DB_PORT=$(DB_PORT) \
