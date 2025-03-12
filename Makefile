@@ -74,7 +74,6 @@ fmt: ## Format code
 check: fmt lint build test ## Run all checks (format, lint, build, test)
 
 # Node tests
-MAX_ACTORS ?= 3
 CHAIN_ID ?= 31337
 OWNER_KEY ?= 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 MOCK_VERIFIER ?= false
@@ -88,7 +87,6 @@ run-node-tests-mock: ## Run node tests with mock verifier
 	MONITOR_PORT=$(MONITOR_PORT) \
 	MAX_ACTORS=20 \
 	cargo run --bin host --release -- \
-		--max-actors $(MAX_ACTORS) \
 		--chain-id $(CHAIN_ID) \
 		--owner-key $(OWNER_KEY) \
 		--mock-verifier
@@ -99,8 +97,8 @@ run-node-tests: ## Run node tests with real verifier
 	NODE_PORT=$(NODE_PORT) \
 	MONITOR_HOST=$(MONITOR_HOST) \
 	MONITOR_PORT=$(MONITOR_PORT) \
+	MAX_ACTORS=3 \
 	cargo run --bin host --release -- \
-		--max-actors $(MAX_ACTORS) \
 		--chain-id $(CHAIN_ID) \
 		--owner-key $(OWNER_KEY)
 
@@ -109,8 +107,8 @@ create-db: ## Create the database
 	DB_PORT=$(DB_PORT) \
 	DB_USER=$(DB_USER) \
 	DB_PASSWORD=$(DB_PASSWORD) \
-	DB_NAME=$(DB_NAME) \
-	DB_CREATE_NAME=postgres \
+	DB_NAME=postgres \
+	DB_CREATE_NAME=ttc \
 	RUST_LOG=debug \
 	cargo run --release --bin create-db
 

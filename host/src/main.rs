@@ -24,7 +24,7 @@ use risc0_steel::alloy::{
     signers::Signer,
     sol_types::SolValue,
 };
-use std::{collections::HashMap, str::FromStr};
+use std::{collections::HashMap, str::FromStr, thread::sleep};
 use time::macros::format_description;
 use tracing::{info, instrument};
 use tracing_subscriber::{
@@ -520,6 +520,8 @@ async fn run_test_case(config: Config, p: Preferences<U256>) -> Result<()> {
     ttc.advancePhase().send().await?.watch().await?;
     info!("Computing the reallocation");
     let (proof, seal) = {
+        // this is a hack because the monitor probably still hasn't polled the event and started the proof job
+        sleep(tokio::time::Duration::from_secs(2));
         let status = &setup.poll_until_proof_ready(*ttc.address()).await?;
         if let ProofStatus::Errored(e) = status {
             Err(anyhow::anyhow!("Prover errored with message {}", e))

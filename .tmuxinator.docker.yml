@@ -2,9 +2,7 @@ name: ttc-docker
 root: <%= ENV["PWD"] %>
 
 on_project_start:
-  # Rebuild images to ensure they reflect current code
-  - docker compose build prover-server monitor-server
-  - docker compose up -d postgres ethereum-node
+  - docker compose up -d
 
 windows:
   - eth_pg_logs:
@@ -15,8 +13,8 @@ windows:
   - servers:
       layout: even-vertical
       panes:
-        - docker compose up prover-server
-        - docker compose up monitor-server
+        - docker compose logs -f prover-server
+        - docker compose logs -f monitor-server
   - system:
       panes:
         - htop

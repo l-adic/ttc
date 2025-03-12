@@ -26,4 +26,7 @@ pub trait MonitorApi {
 
     #[method(name = "getProofStatus")]
     async fn get_proof_status(&self, address: Address) -> Result<ProofStatus, ErrorObjectOwned>;
+
+    #[method(name = "healthCheck")]
+    async fn health_check(&self) -> Result<(), ErrorObjectOwned>;
 }

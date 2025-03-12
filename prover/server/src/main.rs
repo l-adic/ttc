@@ -104,6 +104,10 @@ impl ProverApiServer for ProverApiImpl {
         });
         Ok(())
     }
+
+    async fn health_check(&self) -> Result<(), ErrorObjectOwned> {
+        Ok(())
+    }
 }
 
 #[tokio::main]

@@ -3,6 +3,7 @@ root: <%= ENV["PWD"] %>
 
 on_project_start:
   - docker compose up -d ethereum-node postgres
+  - sleep 5
   - make create-db
   - make create-schema
 

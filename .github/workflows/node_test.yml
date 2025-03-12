@@ -100,7 +100,6 @@ jobs:
       if: github.event_name != 'schedule'
       run: |
         RISC0_DEV_MODE=true docker compose up -d
-        sleep 5  # Wait for services to start
         make run-node-tests-mock
     
     # Run full tests for nightly builds
@@ -108,7 +107,6 @@ jobs:
       if: github.event_name == 'schedule'
       run: |
         RISC0_DEV_MODE=false docker compose up -d
-        sleep 5  # Wait for services to start
         make run-node-tests
     
     # Get short git SHA for tagging

@@ -15,4 +15,7 @@ pub trait ProverApi {
 
     #[method(name = "prove_async")]
     async fn prove_async(&self, address: Address) -> Result<(), ErrorObjectOwned>;
+
+    #[method(name = "healthCheck")]
+    async fn health_check(&self) -> Result<(), ErrorObjectOwned>;
 }

@@ -1,6 +1,7 @@
 services:
   ethereum-node:
     image: ${ETHEREUM_NODE_IMAGE:-}
+    mem_limit: 4g
     build:
       context: ./docker/anvil
       dockerfile: Dockerfile
@@ -20,16 +21,47 @@ services:
     networks:
       - ttc-network
       
+  postgres:
+    image: postgres:15
+    command: ["postgres", "-c", "log_statement=all", "-c", "log_destination=stderr"]
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ttc-network
+
   prover-server:
     image: ${PROVER_SERVER_IMAGE:-}
+    mem_limit: 8g
     build:
       context: .
       dockerfile: docker/prover-server/Dockerfile
     ports:
       - "${JSON_RPC_PORT:-3000}:3000"
     depends_on:
-      - ethereum-node
-      - postgres
+      ethereum-node:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      monitor-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-s", "-X", "POST", 
+             "-H", "Content-Type: application/json", 
+             "-d", '{"jsonrpc":"2.0","method":"healthCheck","params":[],"id":1}', 
+             "http://localhost:3030"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
     environment:
       - RUST_LOG=${RUST_LOG:-info}
       - RISC0_DEV_MODE=${RISC0_DEV_MODE:-true}
@@ -49,29 +81,28 @@ services:
         aliases:
           - prover-server
 
-  postgres:
-    image: postgres:15
-    command: ["postgres", "-c", "log_statement=all", "-c", "log_destination=stderr"]
-    ports:
-      - "5432:5432"
-    environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=postgres
-    networks:
-      - ttc-network
-
   monitor-server:
     image: ${MONITOR_SERVER_IMAGE:-}
+    mem_limit: 4g
     build:
       context: .
       dockerfile: docker/monitor-server/Dockerfile
     ports:
       - "${JSON_RPC_PORT:-3030}:3030"
     depends_on:
-      - ethereum-node
-      - postgres
-      - prover-server
+      ethereum-node:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-s", "-X", "POST", 
+             "-H", "Content-Type: application/json", 
+             "-d", '{"jsonrpc":"2.0","method":"healthCheck","params":[],"id":1}', 
+             "http://localhost:3030"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
     environment:
       - RUST_LOG=${RUST_LOG:-info}
       - DB_HOST=postgres
@@ -85,7 +116,11 @@ services:
       - PROVER_PORT=3000
       - JSON_RPC_PORT=3030
     command: >
-      sh -c "/app/target/release/monitor-server"
+      sh -c " 
+      DB_NAME=postgres DB_CREATE_NAME=ttc /app/target/release/create-db &&
+      /app/target/release/create-schema &&
+      /app/target/release/monitor-server
+      "
     networks:
       - ttc-network
       - prover-network

@@ -82,7 +82,7 @@ impl<T: NotifyPayload + Send + 'static> PgNotifier<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app_env::{self, DBConfig, DB};
+    use crate::app_env::{self, DB};
     use sqlx::PgPool;
     use std::{str::FromStr, time::Duration};
 
