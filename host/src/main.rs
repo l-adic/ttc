@@ -160,7 +160,8 @@ mod actor {
             data: ActorData,
             nonce: u64,
         ) -> Result<Self> {
-            let provider = create_provider(config.node_url.clone(), owner.clone());
+            let node_url = config.node_url()?;
+            let provider = create_provider(node_url, owner.clone());
 
             info!("Fauceting account for {:#}", data.wallet.address());
             let pending_faucet_tx = {
@@ -211,7 +212,8 @@ mod actor {
         owner: PrivateKeySigner,
         prefs: Preferences<TopTradingCycle::Token>,
     ) -> Result<Vec<Actor>> {
-        let provider = create_provider(config.node_url.clone(), owner.clone());
+        let node_url = config.node_url()?;
+        let provider = create_provider(node_url, owner.clone());
         let start_nonce = provider.get_transaction_count(owner.address()).await?;
         let ds = make_actors_data(&config, prefs);
 
@@ -288,17 +290,18 @@ impl TestSetup {
     // Deploy the NFT and TTC contracts and construct the actors.
     async fn new(config: &Config, prefs: Preferences<U256>) -> Result<Self> {
         let owner = PrivateKeySigner::from_str(config.owner_key.as_str())?;
-        let provider = create_provider(config.node_url.clone(), owner.clone());
+        let node_url = config.node_url()?;
+        let provider = create_provider(node_url.clone(), owner.clone());
         let Artifacts { ttc, nft } =
             deploy_for_test(config, provider, config.mock_verifier).await?;
         let actors = {
             let prefs = make_token_preferences(nft, prefs);
             actor::create_actors(config.clone(), ttc, owner.clone(), prefs).await
         }?;
-        let monitor = HttpClientBuilder::default().build(config.monitor_url.clone())?;
+        let monitor = HttpClientBuilder::default().build(config.monitor_url()?)?;
         Ok(Self {
             config: config.clone(),
-            node_url: config.node_url.clone(),
+            node_url: node_url.clone(),
             ttc,
             owner,
             actors,
@@ -501,7 +504,8 @@ async fn run_test_case(config: Config, p: Preferences<U256>) -> Result<()> {
     //   info!("Setting up test environment for {} actors", p.prefs.len());
     let setup = TestSetup::new(&config, p).await?;
     let ttc = {
-        let provider = create_provider(config.node_url.clone(), setup.owner.clone());
+        let node_url = config.node_url()?;
+        let provider = create_provider(node_url, setup.owner.clone());
         TopTradingCycle::new(setup.ttc, provider)
     };
     info!("Sending request to watch the contract");
@@ -584,40 +588,61 @@ pub fn init_console_subscriber() {
 #[derive(Clone, Parser)]
 #[command(author, version, about, long_about = None)]
 struct Config {
-    /// RPC Node URL
-    #[arg(long, default_value = "http://localhost:8545")]
-    node_url: Url,
+    /// Node host
+    #[arg(long, env = "NODE_HOST", default_value = "localhost")]
+    node_host: String,
 
-    #[arg(long, default_value = "http://localhost:8547")]
-    monitor_url: Url,
+    /// Node port
+    #[arg(long, env = "NODE_PORT", default_value = "8545")]
+    node_port: String,
 
-    #[arg(long, default_value_t = 10)]
+    /// Monitor host
+    #[arg(long, env = "MONITOR_HOST", default_value = "localhost")]
+    monitor_host: String,
+
+    /// Monitor port
+    #[arg(long, env = "MONITOR_PORT", default_value = "8547")]
+    monitor_port: String,
+
+    #[arg(long, env = "MAX_ACTORS", default_value_t = 10)]
     max_actors: usize,
 
     /// Maximum gas limit for transactions
-    #[arg(long, default_value_t = 1_000_000u64)]
+    #[arg(long, env = "MAX_GAS", default_value_t = 1_000_000u64)]
     max_gas: u64,
 
     /// Chain ID
-    #[arg(long)]
+    #[arg(long, env = "CHAIN_ID")]
     chain_id: u64,
 
     /// Initial ETH balance for new accounts
-    #[arg(long, default_value = "5")]
+    #[arg(long, env = "INITIAL_BALANCE", default_value = "5")]
     initial_balance: String,
 
     /// Owner private key (with or without 0x prefix)
-    #[arg(long)]
+    #[arg(long, env = "OWNER_KEY")]
     owner_key: String,
 
-    #[arg(long, name = "num-erc721", default_value_t = 3)]
+    #[arg(long, env = "NUM_ERC721", default_value_t = 3)]
     num_erc721: usize,
 
-    #[arg(long, name = "phase-duration", default_value_t = 0)]
+    #[arg(long, env = "PHASE_DURATION", default_value_t = 0)]
     phase_duration: u64,
 
-    #[arg(long, name = "mock-verifier", default_value_t = false)]
+    #[arg(long, env = "MOCK_VERIFIER", default_value_t = false)]
     mock_verifier: bool,
+}
+
+impl Config {
+    fn node_url(&self) -> Result<Url, url::ParseError> {
+        let node_url = format!("http://{}:{}", self.node_host, self.node_port);
+        Url::parse(&node_url)
+    }
+
+    fn monitor_url(&self) -> Result<Url, url::ParseError> {
+        let monitor_url = format!("http://{}:{}", self.monitor_host, self.monitor_port);
+        Url::parse(&monitor_url)
+    }
 }
 
 #[tokio::main]

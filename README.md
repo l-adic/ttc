@@ -24,3 +24,44 @@ The [wikipedia article](https://en.wikipedia.org/wiki/Top_trading_cycle) does a 
 
 ## Test against local node
 The `host` crate contains an end-to-end test using a randomly generated allocation. See the [node_test](https://github.com/l-adic/ttc/blob/main/.github/workflows/node_test.yml) workflow for how you would set these up and run locally.
+
+## Development Environment
+
+### Development Environment Setup
+
+Two tmuxinator configurations are provided for development:
+
+#### 1. Local Development (`.tmuxinator.yml`)
+Run services locally with cargo:
+```bash
+tmuxinator start -p .tmuxinator.yml
+```
+
+#### 2. Docker Development (`.tmuxinator.docker.yml`)
+Run all services in Docker containers:
+```bash
+tmuxinator start -p .tmuxinator.docker.yml
+```
+
+The Docker configuration automatically rebuilds the prover-server and monitor-server images before starting to ensure they reflect your current code. This is important when you've made changes to:
+- Any Rust source files
+- Cargo.toml dependencies
+- Dockerfile configurations
+
+If you need to manually rebuild the images:
+```bash
+docker compose build prover-server monitor-server
+```
+
+Both configurations set up:
+- Ethereum node and Postgres logs
+- Prover and Monitor servers
+- System monitoring (htop)
+- Command shell
+
+#### Tmux Key Bindings
+- Exit/detach from tmux: `Ctrl-b d`
+- Switch between windows: `Ctrl-b [0-9]` or mouse click
+- Switch between panes: `Ctrl-b arrow` or mouse click
+- Scroll in a pane: Mouse wheel or `Ctrl-b [` then arrow keys (press `q` to exit scroll mode)
+- Copy text: Select with mouse (may need to hold Shift depending on your terminal)
