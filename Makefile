@@ -48,7 +48,7 @@ build: build-contracts ## Build all components (guests, contracts, host)
 
 # Test commands
 test: build-contracts ## Run all test suites (excluding integration tests)
-	cargo test --release --workspace --exclude-ignored
+	cargo test --release --workspace
 
 test-integration: ## Run integration tests that require external services
 	DB_HOST=$(DB_HOST) \
