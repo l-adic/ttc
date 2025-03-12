@@ -116,20 +116,12 @@ mod tests {
     }
 
     #[tokio::test]
+    #[ignore = "requires postgres instance"]
     async fn test_sqlx_notify() -> Result<()> {
         app_env::init_console_subscriber();
         eprintln!("[TEST] Starting SQLx notification test");
 
-        let db = {
-            let cfg = DBConfig {
-                host: "localhost".to_string(),
-                port: 5432,
-                user: "postgres".to_string(),
-                password: "postgres".to_string(),
-                dbname: "postgres".to_string(),
-            };
-            DB::new(cfg).await?
-        };
+        let db = DB::new_from_environment().await?;
 
         let pool = db.pool;
 

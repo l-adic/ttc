@@ -33,3 +33,8 @@ jobs:
         
     - name: Run Tests
       run: make test
+
+    - name: Run Integration Tests
+      run: |
+        docker compose up -d postgres
+        make test-integration

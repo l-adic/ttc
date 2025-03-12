@@ -47,8 +47,17 @@ build: build-contracts ## Build all components (guests, contracts, host)
 	cargo build --release --workspace
 
 # Test commands
-test: build-contracts ## Run all test suites
-	cargo test --release --workspace
+test: build-contracts ## Run all test suites (excluding integration tests)
+	cargo test --release --workspace --exclude-ignored
+
+test-integration: ## Run integration tests that require external services
+	DB_HOST=$(DB_HOST) \
+	DB_PORT=$(DB_PORT) \
+	DB_USER=$(DB_USER) \
+	DB_PASSWORD=$(DB_PASSWORD) \
+	DB_NAME=$(DB_NAME) \
+	RUST_LOG=debug \
+	cargo test --release --workspace -- --ignored
 
 # Cleaning
 clean: ## Clean build artifacts
