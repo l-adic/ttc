@@ -12,4 +12,10 @@ pub struct Proof {
 pub trait ProverApi {
     #[method(name = "prove")]
     async fn prove(&self, address: Address) -> Result<Proof, ErrorObjectOwned>;
+
+    #[method(name = "prove_async")]
+    async fn prove_async(&self, address: Address) -> Result<(), ErrorObjectOwned>;
+
+    #[method(name = "healthCheck")]
+    async fn health_check(&self) -> Result<(), ErrorObjectOwned>;
 }

@@ -1,6 +1,7 @@
 services:
   ethereum-node:
     image: ${ETHEREUM_NODE_IMAGE:-}
+    mem_limit: 4g
     build:
       context: ./docker/anvil
       dockerfile: Dockerfile
@@ -17,20 +18,116 @@ services:
       --chain-id ${CHAIN_ID:-31337}
       --accounts ${ACCOUNTS:-10}
       --balance ${BALANCE:-100000}
+    networks:
+      - ttc-network
       
+  postgres:
+    image: postgres:15
+    command: ["postgres", "-c", "log_statement=all", "-c", "log_destination=stderr"]
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ttc-network
+
   prover-server:
     image: ${PROVER_SERVER_IMAGE:-}
+    mem_limit: 8g
     build:
       context: .
       dockerfile: docker/prover-server/Dockerfile
     ports:
-      - "${PROVER_PORT:-8546}:8546"
+      - "${JSON_RPC_PORT:-3000}:3000"
     depends_on:
-      - ethereum-node
+      ethereum-node:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      monitor-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-s", "-X", "POST", 
+             "-H", "Content-Type: application/json", 
+             "-d", '{"jsonrpc":"2.0","method":"healthCheck","params":[],"id":1}', 
+             "http://localhost:3030"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
     environment:
       - RUST_LOG=${RUST_LOG:-info}
       - RISC0_DEV_MODE=${RISC0_DEV_MODE:-true}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=ttc
+      - NODE_HOST=ethereum-node
+      - NODE_PORT=${ETH_PORT:-8545}
+      - JSON_RPC_PORT=3000
     command: >
-      sh -c "/app/target/release/prover-server 
-      --node-url http://ethereum-node:${ETH_PORT:-8545} 
-      --json-rpc-port ${PROVER_PORT:-8546}"
+      sh -c "/app/target/release/prover-server"
+    networks:
+      prover-network:
+      ttc-network:
+        aliases:
+          - prover-server
+
+  monitor-server:
+    image: ${MONITOR_SERVER_IMAGE:-}
+    mem_limit: 4g
+    build:
+      context: .
+      dockerfile: docker/monitor-server/Dockerfile
+    ports:
+      - "${JSON_RPC_PORT:-3030}:3030"
+    depends_on:
+      ethereum-node:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-s", "-X", "POST", 
+             "-H", "Content-Type: application/json", 
+             "-d", '{"jsonrpc":"2.0","method":"healthCheck","params":[],"id":1}', 
+             "http://localhost:3030"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    environment:
+      - RUST_LOG=${RUST_LOG:-info}
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=ttc
+      - NODE_HOST=ethereum-node
+      - NODE_PORT=${ETH_PORT:-8545}
+      - PROVER_HOST=prover-server
+      - PROVER_PORT=3000
+      - JSON_RPC_PORT=3030
+    command: >
+      sh -c " 
+      DB_NAME=postgres DB_CREATE_NAME=ttc /app/target/release/create-db &&
+      /app/target/release/create-schema &&
+      /app/target/release/monitor-server
+      "
+    networks:
+      - ttc-network
+      - prover-network
+
+networks:
+  ttc-network:
+    driver: bridge
+  prover-network:
+    driver: bridge
+    internal: true

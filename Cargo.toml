@@ -4,6 +4,8 @@ members = [
     "ttc", 
     "host", 
     "methods",
+    "monitor",
+    "monitor/server",
     "prover",
     "prover/server"
   ]
@@ -13,17 +15,23 @@ version = "0.1.0"
 edition = "2021"
 
 [workspace.dependencies]
+alloy = "0.9.2"
 anyhow = "1.0"
-clap = { version = "4.4", features = ["derive"] }
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4.4", features = ["derive", "env"] }
 futures = "0.3"
+hex = "0.4"
 itertools = "0.14.0"
 jsonrpsee = "0.22"
 petgraph = { version = "0.7.1", default-features = false }
 proptest = "1.6.0"
-serde = "1.0"
+serde = {version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+sqlx = { version = "0.8", features = ["postgres", "runtime-tokio", "tls-rustls", "macros", "chrono", "uuid"] }
 thiserror = "2.0"
 time = { version = "0.3", features = ["macros"] }
 tokio = { version = "1.35", features = ["full"] }
+tokio-stream = "0.1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = [ "ansi", "env-filter", "fmt", "time" ] }
 url = { version = "2.5" }
@@ -39,4 +47,5 @@ risc0-ethereum-contracts = { git = "https://github.com/risc0/risc0-ethereum", ta
 ttc = { path = "ttc" }
 methods = {path = "methods" }
 host = {path = "host" }
+monitor-common = {path = "monitor"}
 prover-common = {path = "prover"}

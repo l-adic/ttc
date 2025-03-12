@@ -1,0 +1,57 @@
+name: ttc
+root: <%= ENV["PWD"] %>
+
+on_project_start:
+  - docker compose up -d ethereum-node postgres
+  - sleep 5
+  - make create-db
+  - make create-schema
+
+windows:
+  - eth_pg_logs:
+      layout: even-vertical
+      panes:
+        - docker compose logs -f ethereum-node
+        - docker compose logs -f postgres
+  - servers:
+      layout: even-vertical
+      panes:
+        - >
+          DB_HOST=localhost
+          DB_PORT=5432
+          DB_USER=postgres
+          DB_PASSWORD=postgres
+          DB_NAME=ttc
+          NODE_HOST=localhost
+          NODE_PORT=8545
+          JSON_RPC_PORT=3000
+          RISC0_DEV_MODE=true
+          make run-prover-server
+        - >
+          DB_HOST=localhost
+          DB_PORT=5432
+          DB_USER=postgres
+          DB_PASSWORD=postgres
+          DB_NAME=ttc
+          NODE_HOST=localhost
+          NODE_PORT=8545
+          PROVER_HOST=localhost
+          PROVER_PORT=3000
+          JSON_RPC_PORT=3030
+          make run-monitor-server
+  - system:
+      panes:
+        - htop
+  - shell:
+      panes:
+        - # empty shell
+
+# Enable mouse mode
+tmux_options: "-2"
+
+# Set default shell options
+tmux_command: "TERM=screen-256color tmux"
+
+# Additional tmux configuration
+pre_window: tmux set -g mouse on
+tmux_attach: false

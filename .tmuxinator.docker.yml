@@ -1,0 +1,33 @@
+name: ttc-docker
+root: <%= ENV["PWD"] %>
+
+on_project_start:
+  - docker compose up -d
+
+windows:
+  - eth_pg_logs:
+      layout: even-vertical
+      panes:
+        - docker compose logs -f ethereum-node
+        - docker compose logs -f postgres
+  - servers:
+      layout: even-vertical
+      panes:
+        - docker compose logs -f prover-server
+        - docker compose logs -f monitor-server
+  - system:
+      panes:
+        - htop
+  - shell:
+      panes:
+        - # empty shell
+
+# Enable mouse mode
+tmux_options: "-2"
+
+# Set default shell options
+tmux_command: "TERM=screen-256color tmux"
+
+# Additional tmux configuration
+pre_window: tmux set -g mouse on
+tmux_attach: false
