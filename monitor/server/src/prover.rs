@@ -11,10 +11,7 @@ pub trait ProverT {
 
 pub mod remote {
     use super::{Proof, ProofStatus, ProverT};
-    use crate::{
-        db::{Database, JobStatus},
-        ttc_contract, utils,
-    };
+    use crate::{db::Database, ttc_contract, utils};
     use alloy::{
         network::Ethereum,
         primitives::Address,
@@ -22,6 +19,7 @@ pub mod remote {
         transports::http::{Client, Http},
     };
     use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
+    use monitor_common::db::JobStatus;
     use prover_common::rpc::ProverApiClient;
     use url::Url;
 

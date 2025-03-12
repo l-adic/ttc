@@ -18,22 +18,22 @@ services:
       --accounts ${ACCOUNTS:-10}
       --balance ${BALANCE:-100000}
       
-  prover-server:
-    image: ${PROVER_SERVER_IMAGE:-}
-    build:
-      context: .
-      dockerfile: docker/prover-server/Dockerfile
-    ports:
-      - "${PROVER_PORT:-8546}:8546"
-    depends_on:
-      - ethereum-node
-    environment:
-      - RUST_LOG=${RUST_LOG:-info}
-      - RISC0_DEV_MODE=${RISC0_DEV_MODE:-true}
-    command: >
-      sh -c "/app/target/release/prover-server 
-      --node-url http://ethereum-node:${ETH_PORT:-8545} 
-      --json-rpc-port ${PROVER_PORT:-8546}"
+#  prover-server:
+#    image: ${PROVER_SERVER_IMAGE:-}
+#    build:
+#      context: .
+#      dockerfile: docker/prover-server/Dockerfile
+#    ports:
+#      - "${PROVER_PORT:-8546}:8546"
+#    depends_on:
+#      - ethereum-node
+#    environment:
+#      - RUST_LOG=${RUST_LOG:-info}
+#      - RISC0_DEV_MODE=${RISC0_DEV_MODE:-true}
+#    command: >
+#      sh -c "/app/target/release/prover-server 
+#      --node-url http://ethereum-node:${ETH_PORT:-8545} 
+#      --json-rpc-port ${PROVER_PORT:-8546}"
 
   postgres:
     image: postgres:15

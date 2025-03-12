@@ -3449,10 +3449,12 @@ name = "monitor-common"
 version = "0.1.0"
 dependencies = [
  "alloy",
+ "chrono",
  "futures",
  "hex",
  "jsonrpsee",
  "serde",
+ "sqlx",
 ]
 
 [[package]]
@@ -4112,15 +4114,18 @@ name = "prover-server"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "clap",
  "futures",
  "jsonrpsee",
  "methods",
+ "monitor-common",
  "prover-common",
  "risc0-ethereum-contracts",
  "risc0-steel",
  "risc0-zkvm",
  "serde",
+ "sqlx",
  "time",
  "tokio",
  "tracing",

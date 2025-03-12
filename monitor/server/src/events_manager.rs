@@ -1,5 +1,5 @@
 use crate::{
-    db::{Database, Job, JobStatus},
+    db::Database,
     prover::{remote::Prover, ProverT},
     ttc_contract::TopTradingCycle::{self, PhaseChanged},
 };
@@ -10,6 +10,7 @@ use alloy::{
 };
 use chrono::{TimeZone, Utc};
 use futures::StreamExt;
+use monitor_common::db::{Job, JobStatus};
 use std::collections::HashMap;
 use tokio::{sync::Mutex, task::JoinHandle};
 use tracing::debug;

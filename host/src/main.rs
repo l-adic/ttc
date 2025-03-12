@@ -5,12 +5,12 @@ use host::contract::{
     ttc::TopTradingCycle::{self},
 };
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
+use monitor_common::rpc::ProofStatus;
 use proptest::{
     arbitrary::Arbitrary,
     strategy::{Strategy, ValueTree},
     test_runner::TestRunner,
 };
-use prover_common::rpc::ProverApiClient;
 use rand::prelude::SliceRandom;
 use risc0_steel::alloy::{
     network::{Ethereum, EthereumWallet},
@@ -262,7 +262,6 @@ struct TestSetup {
     ttc: Address,
     owner: PrivateKeySigner,
     actors: Vec<Actor>,
-    prover: HttpClient,
     monitor: HttpClient,
 }
 
@@ -296,7 +295,6 @@ impl TestSetup {
             let prefs = make_token_preferences(nft, prefs);
             actor::create_actors(config.clone(), ttc, owner.clone(), prefs).await
         }?;
-        let prover = HttpClientBuilder::default().build(config.prover_url.clone())?;
         let monitor = HttpClientBuilder::default().build(config.monitor_url.clone())?;
         Ok(Self {
             config: config.clone(),
@@ -304,7 +302,6 @@ impl TestSetup {
             ttc,
             owner,
             actors,
-            prover,
             monitor,
         })
     }
@@ -472,6 +469,31 @@ impl TestSetup {
 
         Ok(())
     }
+
+    async fn poll_until_proof_ready(&self, address: Address) -> Result<ProofStatus> {
+        loop {
+            let status =
+                monitor_common::rpc::MonitorApiClient::get_proof_status(&self.monitor, address)
+                    .await?;
+            match status {
+                monitor_common::rpc::ProofStatus::Completed => {
+                    return Ok(status);
+                }
+                monitor_common::rpc::ProofStatus::Errored(_) => {
+                    return Ok(status);
+                }
+                // not ready yet, delay 5 seconds and try again
+                _ => {
+                    info!(
+                        "Proof for ttc contract {:#} not ready yet, waiting 5 seconds",
+                        address
+                    );
+                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                    // Continue the loop
+                }
+            }
+        }
+    }
 }
 
 #[instrument(skip_all, level = "info")]
@@ -483,7 +505,7 @@ async fn run_test_case(config: Config, p: Preferences<U256>) -> Result<()> {
         TopTradingCycle::new(setup.ttc, provider)
     };
     info!("Sending request to watch the contract");
-    monitor_common::rpc::ProverApiClient::watch_contract(&setup.monitor, *ttc.address()).await?;
+    monitor_common::rpc::MonitorApiClient::watch_contract(&setup.monitor, *ttc.address()).await?;
     info!("Depositing tokens to contract");
     setup.deposit_tokens().await?;
     info!("Advancing phase to Rank");
@@ -494,10 +516,17 @@ async fn run_test_case(config: Config, p: Preferences<U256>) -> Result<()> {
     ttc.advancePhase().send().await?.watch().await?;
     info!("Computing the reallocation");
     let (proof, seal) = {
-        let resp = ProverApiClient::prove(&setup.prover, *ttc.address()).await?;
-        info!("Received proof from prover");
-        let journal = TopTradingCycle::Journal::abi_decode(&resp.journal, true)?;
-        Ok((journal, resp.seal))
+        let status = &setup.poll_until_proof_ready(*ttc.address()).await?;
+        if let ProofStatus::Errored(e) = status {
+            Err(anyhow::anyhow!("Prover errored with message {}", e))
+        } else {
+            info!("Prover completed successfully");
+            let resp =
+                monitor_common::rpc::MonitorApiClient::get_proof(&setup.monitor, *ttc.address())
+                    .await?;
+            let journal = TopTradingCycle::Journal::abi_decode(&resp.journal, true)?;
+            Ok((journal, resp.seal))
+        }
     }?;
     setup.reallocate(proof.clone(), seal).await?;
     let trade_results = {
@@ -558,9 +587,6 @@ struct Config {
     /// RPC Node URL
     #[arg(long, default_value = "http://localhost:8545")]
     node_url: Url,
-
-    #[arg(long, default_value = "http://localhost:8546")]
-    prover_url: Url,
 
     #[arg(long, default_value = "http://localhost:8547")]
     monitor_url: Url,

@@ -1,35 +1,5 @@
-use chrono::{DateTime, Utc};
-use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, PgPool, Type};
-
-// Custom type for JobStatus to map to PostgreSQL ENUM
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Type)]
-#[sqlx(type_name = "job_status", rename_all = "snake_case")]
-pub enum JobStatus {
-    Created,
-    InProgress,
-    Completed,
-    Errored,
-}
-
-// Job table representation
-#[derive(Debug, FromRow, Serialize, Deserialize)]
-pub struct Job {
-    pub address: Vec<u8>,
-    pub block_number: i64,
-    pub block_timestamp: DateTime<Utc>,
-    pub status: JobStatus,
-    pub error: Option<String>,
-    pub completed_at: Option<DateTime<Utc>>,
-}
-
-// Proof table representation
-#[derive(Debug, FromRow, Serialize, Deserialize)]
-pub struct Proof {
-    pub address: Vec<u8>,
-    pub proof: Vec<u8>,
-    pub seal: Vec<u8>,
-}
+use monitor_common::db::{Job, Proof};
+use sqlx::PgPool;
 
 // Database management struct
 #[derive(Clone)]
@@ -83,53 +53,6 @@ impl Database {
         .bind(address)
         .fetch_one(&self.pool)
         .await
-    }
-
-    pub async fn update_job_status(
-        &self,
-        address: &[u8],
-        new_status: JobStatus,
-        error: Option<String>,
-        completed_at: Option<DateTime<Utc>>,
-    ) -> Result<(), sqlx::Error> {
-        sqlx::query(
-            r#"
-            UPDATE jobs 
-            SET 
-                status = $2, 
-                error = $3, 
-                completed_at = $4
-            WHERE address = $1
-        "#,
-        )
-        .bind(address)
-        .bind(new_status)
-        .bind(&error)
-        .bind(completed_at)
-        .execute(&self.pool)
-        .await?;
-
-        Ok(())
-    }
-
-    // Proof-specific methods
-    pub async fn create_proof(&self, proof: &Proof) -> Result<(), sqlx::Error> {
-        sqlx::query(
-            r#"
-            INSERT INTO proofs (
-                address, proof, seal
-            ) VALUES (
-                $1, $2, $3
-            )
-        "#,
-        )
-        .bind(&proof.address)
-        .bind(&proof.proof)
-        .bind(&proof.seal)
-        .execute(&self.pool)
-        .await?;
-
-        Ok(())
     }
 
     pub async fn get_proof_by_address(&self, address: &[u8]) -> Result<Proof, sqlx::Error> {

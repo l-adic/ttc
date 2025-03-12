@@ -17,7 +17,7 @@ pub enum ProofStatus {
 }
 
 #[rpc(server, client)]
-pub trait ProverApi {
+pub trait MonitorApi {
     #[method(name = "watchContract")]
     async fn watch_contract(&self, address: Address) -> Result<(), ErrorObjectOwned>;
 

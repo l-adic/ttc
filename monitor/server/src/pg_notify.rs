@@ -1,7 +1,6 @@
 use anyhow::Result;
 use futures::{future, StreamExt};
-use monitor_common::pg_notify::TypedChannel;
-use serde::de::DeserializeOwned;
+use monitor_common::pg_notify::{NotifyPayload, TypedChannel};
 use sqlx::{postgres::PgListener, PgPool};
 use tokio::sync::mpsc;
 use tracing::{error, span, Level};
@@ -10,7 +9,7 @@ pub struct PgNotifier<T> {
     notifications: mpsc::UnboundedReceiver<T>,
 }
 
-impl<T: DeserializeOwned + Send + 'static> PgNotifier<T> {
+impl<T: NotifyPayload + Send + 'static> PgNotifier<T> {
     pub async fn new(pool: &PgPool, channel: TypedChannel<T>) -> Result<Self> {
         let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
         let mut listener = PgListener::connect_with(pool).await?;
@@ -35,7 +34,7 @@ impl<T: DeserializeOwned + Send + 'static> PgNotifier<T> {
                     );
                     match message {
                         Ok(notification) => {
-                            match serde_json::from_str::<T>(notification.payload()) {
+                            match NotifyPayload::decode_payload(notification.payload()) {
                                 Ok(data) => future::ready(Some(data)),
                                 Err(e) => {
                                     error!(
@@ -85,7 +84,7 @@ mod tests {
     use super::*;
     use crate::app_env::{self, DBConfig, DB};
     use sqlx::PgPool;
-    use std::time::Duration;
+    use std::{str::FromStr, time::Duration};
 
     // Function to publish a notification
     pub async fn publish_notification<T: serde::Serialize>(
@@ -103,6 +102,17 @@ mod tests {
             .await?;
 
         Ok(())
+    }
+
+    #[derive(Debug, Clone, PartialEq)]
+    struct WrappedInt(i32);
+
+    impl NotifyPayload for WrappedInt {
+        fn decode_payload(payload: &str) -> Result<Self, String> {
+            let data =
+                FromStr::from_str(payload).map_err(|x: std::num::ParseIntError| x.to_string())?;
+            Ok(WrappedInt(data))
+        }
     }
 
     #[tokio::test]
@@ -125,7 +135,7 @@ mod tests {
 
         // Create channel and notifier
         eprintln!("[TEST] Creating typed channel and notifier");
-        let channel = TypedChannel::<i32>::new("test_numbers");
+        let channel = TypedChannel::<WrappedInt>::new("test_numbers");
         let notifier = PgNotifier::new(&pool, channel.clone()).await?;
         let mut subscriber = notifier.subscribe();
         eprintln!("[TEST] Notifier created and subscribed");
@@ -163,7 +173,7 @@ mod tests {
         }
 
         eprintln!("[TEST] Received {} notifications", received.len());
-        assert_eq!(received, vec![1, 2, 3]);
+        assert_eq!(received, vec![WrappedInt(1), WrappedInt(2), WrappedInt(3)]);
         eprintln!("[TEST] Test completed successfully");
         Ok(())
     }

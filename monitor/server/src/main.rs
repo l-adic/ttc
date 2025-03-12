@@ -7,7 +7,7 @@ use jsonrpsee::{
 };
 use monitor_common::{
     pg_notify::JOB_CHANNEL,
-    rpc::{Proof, ProofStatus, ProverApiServer},
+    rpc::{MonitorApiServer, Proof, ProofStatus},
 };
 use monitor_server::app_env::{init_console_subscriber, AppConfig, AppEnv};
 use monitor_server::pg_notify::PgNotifier;
@@ -24,7 +24,7 @@ async fn listen_for_job_updates(env: Arc<AppEnv>) -> anyhow::Result<()> {
 
     tokio::spawn(async move {
         while let Some(job) = subs.recv().await {
-            if let Err(e) = env_clone.events_manager.cancel_monitoring(job.into()).await {
+            if let Err(e) = env_clone.events_manager.cancel_monitoring(job).await {
                 tracing::error!("Failed to cancel monitoring: {}", e);
             }
         }
@@ -38,7 +38,7 @@ struct ProverApiImpl {
 }
 
 #[async_trait]
-impl ProverApiServer for ProverApiImpl {
+impl MonitorApiServer for ProverApiImpl {
     async fn get_proof(&self, address: Address) -> Result<Proof, ErrorObjectOwned> {
         debug!("Getting proof for address: {:#}", address);
         let proof_opt = self.app_env.prover.get_proof(address).await;

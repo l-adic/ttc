@@ -30,31 +30,35 @@ pub fn create_provider(node_url: Url) -> impl Provider<Http<Client>, Ethereum> +
     ProviderBuilder::new().on_http(node_url)
 }
 
-#[derive(Clone)]
-pub struct ProverConfig {
-    pub node_url: Url,
-    pub ttc: Address,
+#[allow(async_fn_in_trait)]
+pub trait ProverT {
+    async fn prove(&self, address: Address) -> Result<Proof>;
 }
 
+#[derive(Clone)]
 pub struct Prover {
-    cfg: ProverConfig,
+    node_url: Url,
 }
 
 impl Prover {
-    pub fn new(cfg: &ProverConfig) -> Self {
-        Self { cfg: cfg.clone() }
+    pub fn new(node_url: Url) -> Self {
+        Self {
+            node_url: node_url.clone(),
+        }
     }
+}
 
+impl ProverT for Prover {
     #[instrument(skip_all, level = "info")]
-    pub async fn prove(&self) -> Result<Proof> {
+    async fn prove(&self, address: Address) -> Result<Proof> {
+        let provider = create_provider(self.node_url.clone());
+        let ttc = TopTradingCycle::new(address, provider);
         let block_number: u64 = {
-            let provider = create_provider(self.cfg.node_url.clone());
-            let ttc = TopTradingCycle::new(self.cfg.ttc, provider);
             let bn = ttc.tradeInitiatedAtBlock().call().await?;
             u64::try_from(bn._0).context("block number is too large")
         }?;
         let mut env = EthEvmEnv::builder()
-            .rpc(self.cfg.node_url.clone())
+            .rpc(self.node_url.clone())
             .block_number(block_number)
             .build()
             .await?;
@@ -62,7 +66,7 @@ impl Prover {
         //  The `with_chain_spec` method is used to specify the chain configuration.
         env = env.with_chain_spec(&ETH_SEPOLIA_CHAIN_SPEC);
 
-        let mut contract = risc0_steel::Contract::preflight(self.cfg.ttc, &mut env);
+        let mut contract = risc0_steel::Contract::preflight(*ttc.address(), &mut env);
         contract
             .call_builder(&TopTradingCycle::getAllTokenPreferencesCall {})
             .call()
@@ -71,11 +75,10 @@ impl Prover {
         let evm_input = env.into_input().await?;
 
         info!("Running the guest with the constructed input:");
-        let ttc = self.cfg.ttc;
         let prove_info = tokio::task::spawn_blocking(move || {
             let env = ExecutorEnv::builder()
                 .write(&evm_input)?
-                .write(&ttc)?
+                .write(&ttc.address())?
                 .build()
                 .unwrap();
 
