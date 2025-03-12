@@ -55,7 +55,7 @@ test-integration: ## Run integration tests that require external services
 	DB_PORT=$(DB_PORT) \
 	DB_USER=$(DB_USER) \
 	DB_PASSWORD=$(DB_PASSWORD) \
-	DB_NAME=$(DB_NAME) \
+	DB_NAME=postgres \
 	RUST_LOG=debug \
 	cargo test --release --workspace -- --ignored
 
