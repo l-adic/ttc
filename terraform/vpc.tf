@@ -45,18 +45,18 @@ resource "google_compute_firewall" "iap_ssh" {
   target_tags   = ["ssh"]
 }
 
-# Allow IAP tunneling to Anvil port
+# Allow IAP tunneling to services
 resource "google_compute_firewall" "iap_tcp" {
   name    = "${var.vpc_network_name}-allow-iap-tcp"
   network = google_compute_network.vpc.id
 
   allow {
     protocol = "tcp"
-    ports    = ["8545"]  # Anvil port
+    ports    = ["8545", "3030"]  # Anvil and Monitor ports
   }
 
   source_ranges = ["35.235.240.0/20"]  # IAP's IP range
-  target_tags   = ["ethereum-node"]
+  target_tags   = ["ethereum-node", "monitor-server"]
 }
 
 resource "google_compute_firewall" "internal" {

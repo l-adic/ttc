@@ -25,17 +25,6 @@ output "anvil_instance_name" {
   value       = "${google_compute_instance_group_manager.ethereum_node.base_instance_name}-${google_compute_instance_group_manager.ethereum_node.instance_group}"
 }
 
-# Prover Server outputs
-output "prover_server_url" {
-  description = "URL of the Cloud Run service"
-  value       = google_cloud_run_v2_service.prover_server.uri
-}
-
-output "prover_server_port" {
-  description = "Port for the Prover server"
-  value       = "8546"
-}
-
 # Connection Instructions
 output "connection_instructions" {
   description = "Instructions for connecting to the services"
@@ -52,15 +41,16 @@ To connect to the services:
    gcloud compute start-iap-tunnel ${google_compute_instance_group_manager.ethereum_node.base_instance_name}-xxxx 8545 --local-host-port=localhost:8545 --zone=${var.gcp_zone}
    (Note: Get the full instance name by running the command in step 4)
 
-   Terminal 2 (Prover Server):
-   gcloud run services proxy prover-server --port=8546 --region=${var.gcp_region}
+   Terminal 2 (Monitor Server):
+   gcloud compute start-iap-tunnel ${google_compute_instance_group_manager.monitor_server.base_instance_name}-xxxx 3030 --local-host-port=localhost:3030 --zone=${var.gcp_zone}
+   (Note: Get the full instance name by running the command in step 4)
 
 3. You can now access:
    - Anvil Node at http://localhost:8545
-   - Prover Server at http://localhost:8546
+   - Monitor Server at http://localhost:3030
 
-4. To get the actual Anvil instance name, run:
-   gcloud compute instances list --filter="name~'${google_compute_instance_group_manager.ethereum_node.base_instance_name}'" --zones=${var.gcp_zone}
+4. To get the actual instance names, run:
+   gcloud compute instances list --filter="name~'${google_compute_instance_group_manager.ethereum_node.base_instance_name}|${google_compute_instance_group_manager.monitor_server.base_instance_name}'" --zones=${var.gcp_zone}
 
 Note: Keep the terminal windows open to maintain the connections.
 EOT

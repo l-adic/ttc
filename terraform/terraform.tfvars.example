@@ -22,7 +22,23 @@ prover_cpu_count       = 8     # Maximum allowed in Cloud Run
 prover_memory_gb       = 32    # Memory in GB
 prover_rust_log_level  = "info"
 prover_risc0_dev_mode  = "true"
-prover_port            = 8546
+prover_port            = 3000
+
+# Monitor Server Configuration
+monitor_image_repository = "elladic/ttc-monitor-server"
+monitor_rust_log_level  = "info"
+
+# Cloud SQL Configuration
+database_instance_name = "ttc-postgres"
+database_version      = "POSTGRES_15"
+database_tier         = "db-f1-micro"  # Minimal instance for development
+database_name         = "ttc"
+database_username     = "ttc_user"
+database_password     = "your-secure-password-here"  # Replace with a secure password
+database_deletion_protection = false  # Set to true in production to prevent accidental deletion
+
+# IAM Configuration
+terraform_user_email = "your-email@example.com"  # Email of the user running terraform
 
 # IAP Configuration - Add your email to access the services
 iap_member_list = [
