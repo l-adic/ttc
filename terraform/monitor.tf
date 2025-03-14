@@ -47,6 +47,7 @@ write_files:
     Environment="DB_NAME=${var.database_name}"
     Environment="NODE_HOST=${google_compute_forwarding_rule.ethereum_node.ip_address}"
     Environment="NODE_PORT=8545"
+    Environment="PROVER_HOST=${trimprefix(google_cloud_run_v2_service.prover_server.uri, "https://")}"
     ExecStartPre=/usr/bin/timeout 300 /usr/bin/docker pull ${var.monitor_image_repository}:${var.docker_image_tag}
     ExecStart=/bin/bash -c '\
       /usr/bin/docker run --rm --name monitor \
@@ -59,6 +60,7 @@ write_files:
       -e DB_NAME=$${DB_NAME} \
       -e NODE_HOST=$${NODE_HOST} \
       -e NODE_PORT=$${NODE_PORT} \
+      -e PROVER_HOST=$${PROVER_HOST} \
       ${var.monitor_image_repository}:${var.docker_image_tag} \
       /app/target/release/monitor-server'
     ExecStop=/usr/bin/docker stop monitor

@@ -91,12 +91,6 @@ variable "prover_risc0_dev_mode" {
   default     = "true"
 }
 
-variable "prover_port" {
-  description = "Port for the Prover server JSON-RPC endpoint"
-  type        = number
-  default     = 3000  # Match Makefile default
-}
-
 # Monitor Server Configuration
 variable "monitor_image_repository" {
   description = "Docker image repository for Monitor server"

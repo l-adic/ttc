@@ -18,3 +18,17 @@ resource "google_project_iam_member" "user_service_networking_admin" {
   role    = "roles/servicenetworking.networksAdmin"
   member  = "user:${var.terraform_user_email}"
 }
+
+# Grant IAP-secured Web App User role to the terraform user
+resource "google_project_iam_member" "user_iap_secured_web_app_user" {
+  project = var.gcp_project_id
+  role    = "roles/iap.httpsResourceAccessor"
+  member  = "user:${var.terraform_user_email}"
+}
+
+# Grant IAP Admin role to the terraform user
+resource "google_project_iam_member" "user_iap_admin" {
+  project = var.gcp_project_id
+  role    = "roles/iap.admin"
+  member  = "user:${var.terraform_user_email}"
+}

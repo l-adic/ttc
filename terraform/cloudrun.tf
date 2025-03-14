@@ -56,34 +56,24 @@ resource "google_cloud_run_v2_service" "prover_server" {
       }
 
       env {
-        name  = "MONITOR_HOST"
-        value = google_compute_forwarding_rule.monitor_server.ip_address
+        name  = "NODE_HOST"
+        value = google_compute_forwarding_rule.ethereum_node.ip_address
       }
 
       env {
-        name  = "MONITOR_PORT"
-        value = "3030"
+        name  = "NODE_PORT"
+        value = "8545"
       }
 
+      # Let Cloud Run use its default port 8080
       ports {
-        container_port = var.prover_port
+        container_port = 8080
       }
 
-      # Add startup probe to give more time for the container to start
-      startup_probe {
-        initial_delay_seconds = 10
-        failure_threshold    = 30
-        period_seconds      = 10
-        timeout_seconds     = 5
-        tcp_socket {
-          port = var.prover_port
-        }
-      }
-
-      # Set JSON_RPC_PORT environment variable
+      # Set JSON_RPC_PORT to match Cloud Run's default port
       env {
         name  = "JSON_RPC_PORT"
-        value = tostring(var.prover_port)
+        value = "8080"
       }
 
       # Command and arguments for the container
@@ -109,6 +99,9 @@ resource "google_cloud_run_v2_service" "prover_server" {
   }
 
   depends_on = [google_sql_database.ttc]
+
+  # Configure ingress settings at the service level
+  ingress = "INGRESS_TRAFFIC_ALL"
 }
 
 # VPC Access Connector
@@ -119,10 +112,10 @@ resource "google_vpc_access_connector" "connector" {
   network       = google_compute_network.vpc.id
 }
 
-# Allow internal VPC access
-resource "google_cloud_run_service_iam_member" "vpc_access" {
+# Allow public access to the Cloud Run service
+resource "google_cloud_run_service_iam_member" "noauth" {
   location = google_cloud_run_v2_service.prover_server.location
   service  = google_cloud_run_v2_service.prover_server.name
   role     = "roles/run.invoker"
-  member   = "serviceAccount:${google_service_account.prover_server.email}"
+  member   = "allUsers"
 }

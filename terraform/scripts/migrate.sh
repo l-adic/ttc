@@ -3,7 +3,7 @@ set -e
 
 # Get database connection info from terraform output
 echo "Getting database connection info..."
-DB_HOST="34.70.120.157"
+DB_HOST="34.135.173.248"
 DB_NAME="ttc"
 DB_USER="ttc_user"
 DB_PORT=5432

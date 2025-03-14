@@ -122,7 +122,6 @@ create-schema: ## Create the database schema (Must setup the database first via 
 	cargo run --release --bin create-schema
 
 run-prover-server: build-contracts ## Run the prover server
-	RUST_LOG=info \
 	DB_HOST=$(DB_HOST) \
 	DB_PORT=$(DB_PORT) \
 	DB_USER=$(DB_USER) \
@@ -135,7 +134,6 @@ run-prover-server: build-contracts ## Run the prover server
 	cargo run --bin prover-server --release
 
 run-monitor-server: build-contracts ## Run the monitor server
-	RUST_LOG=info \
 	DB_HOST=$(DB_HOST) \
 	DB_PORT=$(DB_PORT) \
 	DB_USER=$(DB_USER) \

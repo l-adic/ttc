@@ -68,7 +68,7 @@ pub struct Config {
     #[arg(long, name = "node-url", default_value = "http://localhost:8545")]
     pub node_url: String,
 
-    #[arg(long, name = "json-rpc-port", default_value_t = 8546)]
+    #[arg(long, name = "json-rpc-port", default_value_t = 3000)]
     pub json_rpc_port: usize,
 }
 

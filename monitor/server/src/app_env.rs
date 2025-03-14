@@ -149,9 +149,9 @@ pub struct AppConfig {
     #[arg(long, env = "PROVER_HOST", default_value = "localhost")]
     pub prover_host: String,
 
-    /// Prover port
-    #[arg(long, env = "PROVER_PORT", default_value = "3000")]
-    pub prover_port: String,
+    /// Prover port (optional, not needed for Cloud Run)
+    #[arg(long, env = "PROVER_PORT")]
+    pub prover_port: Option<String>,
 
     #[arg(long, env = "JSON_RPC_PORT", default_value = "3030")]
     pub json_rpc_port: u16,
@@ -177,7 +177,10 @@ impl AppConfig {
 
     /// Get the prover URL
     pub fn prover_url(&self) -> Result<Url, url::ParseError> {
-        let prover_url = format!("http://{}:{}", self.prover_host, self.prover_port);
+        let prover_url = match &self.prover_port {
+            Some(port) => format!("https://{}:{}", self.prover_host, port),
+            None => format!("https://{}", self.prover_host),
+        };
         Url::parse(&prover_url)
     }
 }
