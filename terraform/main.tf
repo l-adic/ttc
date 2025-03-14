@@ -26,7 +26,8 @@ resource "google_project_service" "required_apis" {
     "containerregistry.googleapis.com",    # Container Registry API
     "iam.googleapis.com",                  # Identity and Access Management API
     "cloudresourcemanager.googleapis.com", # Cloud Resource Manager API
-    "vpcaccess.googleapis.com"            # Serverless VPC Access API
+    "vpcaccess.googleapis.com",           # Serverless VPC Access API
+    "sqladmin.googleapis.com"             # Cloud SQL Admin API
   ])
 
   service = each.key

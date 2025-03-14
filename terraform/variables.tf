@@ -91,10 +91,66 @@ variable "prover_risc0_dev_mode" {
   default     = "true"
 }
 
-variable "prover_port" {
-  description = "Port for the Prover server JSON-RPC endpoint"
-  type        = number
-  default     = 8546
+# Monitor Server Configuration
+variable "monitor_image_repository" {
+  description = "Docker image repository for Monitor server"
+  type        = string
+  default     = "elladic/ttc-monitor-server"
+}
+
+variable "monitor_rust_log_level" {
+  description = "Rust log level for Monitor server"
+  type        = string
+  default     = "info"
+}
+
+# Cloud SQL Configuration
+variable "database_instance_name" {
+  description = "Name of the Cloud SQL instance"
+  type        = string
+  default     = "ttc-postgres"
+}
+
+variable "database_version" {
+  description = "Database version for Cloud SQL"
+  type        = string
+  default     = "POSTGRES_15"
+}
+
+variable "database_tier" {
+  description = "The machine type to use for the database instance"
+  type        = string
+  default     = "db-f1-micro"
+}
+
+variable "database_name" {
+  description = "Name of the default database to create"
+  type        = string
+  default     = "ttc"
+}
+
+variable "database_username" {
+  description = "Username for the database instance"
+  type        = string
+  default     = "ttc_user"
+}
+
+variable "database_password" {
+  description = "Password for the database user"
+  type        = string
+  sensitive   = true
+}
+
+variable "database_deletion_protection" {
+  description = "Enable deletion protection for the database instance"
+  type        = bool
+  default     = false
+}
+
+# IAM Configuration
+variable "terraform_user_email" {
+  description = "Email of the user running terraform (for service account impersonation)"
+  type        = string
 }
 
 # IAP Configuration

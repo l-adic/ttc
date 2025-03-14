@@ -1,5 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
+use serde::Serialize;
 use sqlx::{postgres::PgPoolOptions, PgPool};
 use time::macros::format_description;
 use tracing_subscriber::{
@@ -63,15 +64,6 @@ impl DB {
     }
 }
 
-#[derive(Parser, Debug)]
-pub struct Config {
-    #[arg(long, name = "node-url", default_value = "http://localhost:8545")]
-    pub node_url: String,
-
-    #[arg(long, name = "json-rpc-port", default_value_t = 8546)]
-    pub json_rpc_port: usize,
-}
-
 #[derive(Clone)]
 pub struct AppEnv {
     pub db: Database,
@@ -96,7 +88,7 @@ impl AppEnv {
     }
 }
 
-#[derive(Parser, Debug, Clone)]
+#[derive(Parser, Debug, Clone, Serialize)]
 #[command(author, version, about, long_about = None)]
 pub struct AppConfig {
     /// Database host

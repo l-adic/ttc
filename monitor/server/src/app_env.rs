@@ -6,6 +6,7 @@ use alloy::{
 };
 use anyhow::{Ok, Result};
 use clap::Parser;
+use serde::Serialize;
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use time::macros::format_description;
 use tracing_subscriber::{
@@ -114,7 +115,7 @@ impl AppEnv {
     }
 }
 
-#[derive(Parser, Debug, Clone)]
+#[derive(Parser, Debug, Clone, Serialize)]
 #[command(author, version, about, long_about = None)]
 pub struct AppConfig {
     /// Database host
@@ -145,13 +146,17 @@ pub struct AppConfig {
     #[arg(long, env = "NODE_PORT", default_value = "8545")]
     pub node_port: String,
 
+    /// Prover Protocol
+    #[arg(long, env = "PROVER_PROTOCOL", default_value = "http")]
+    pub prover_protocol: String,
+
     /// Prover host
     #[arg(long, env = "PROVER_HOST", default_value = "localhost")]
     pub prover_host: String,
 
-    /// Prover port
-    #[arg(long, env = "PROVER_PORT", default_value = "3000")]
-    pub prover_port: String,
+    /// Prover port (optional, not needed for Cloud Run)
+    #[arg(long, env = "PROVER_PORT")]
+    pub prover_port: Option<String>,
 
     #[arg(long, env = "JSON_RPC_PORT", default_value = "3030")]
     pub json_rpc_port: u16,
@@ -177,7 +182,10 @@ impl AppConfig {
 
     /// Get the prover URL
     pub fn prover_url(&self) -> Result<Url, url::ParseError> {
-        let prover_url = format!("http://{}:{}", self.prover_host, self.prover_port);
+        let prover_url = match &self.prover_port {
+            Some(port) => format!("{}://{}:{}", self.prover_protocol, self.prover_host, port),
+            None => format!("{}://{}", self.prover_protocol, self.prover_host),
+        };
         Url::parse(&prover_url)
     }
 }

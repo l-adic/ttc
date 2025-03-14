@@ -603,7 +603,7 @@ struct Config {
     monitor_host: String,
 
     /// Monitor port
-    #[arg(long, env = "MONITOR_PORT", default_value = "8547")]
+    #[arg(long, env = "MONITOR_PORT", default_value = "3030")]
     monitor_port: String,
 
     #[arg(long, env = "MAX_ACTORS", default_value_t = 10)]
