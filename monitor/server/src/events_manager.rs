@@ -13,7 +13,7 @@ use futures::StreamExt;
 use monitor_common::db::{Job, JobStatus};
 use std::collections::HashMap;
 use tokio::{sync::Mutex, task::JoinHandle};
-use tracing::debug;
+use tracing::{debug, span, Level};
 use url::Url;
 
 #[allow(async_fn_in_trait)]
@@ -39,10 +39,17 @@ impl EventsManager {
         }
     }
 
+    // Give the thread 10s to clean itself up before aborting. The reason for this is that
+    // we can use this for a graceful shutdown of the monitor thread.
     pub async fn cancel_monitoring(&self, address: Address) -> anyhow::Result<()> {
         let mut events = self.events.lock().await;
         if let Some(handle) = events.remove(&address) {
-            handle.abort();
+            let abort_handle = handle.abort_handle();
+            let timeout_result =
+                tokio::time::timeout(tokio::time::Duration::from_secs(10), handle).await;
+            if timeout_result.is_err() {
+                abort_handle.abort();
+            }
         }
         Ok(())
     }
@@ -63,6 +70,12 @@ impl EventsManager {
         let node_url = self.node_url.clone();
         let prover = self.prover.clone();
         let db = self.db.clone();
+
+        let monitor_span = span!(
+            Level::DEBUG,
+            "event_monitor",
+            address = address.to_string().as_str()
+        );
 
         // Spawn the task with cloned values instead of self reference
         let handle = tokio::spawn(async move {
@@ -86,7 +99,7 @@ impl EventsManager {
                 while let Some(result) = stream.next().await {
                     match result {
                         Ok((PhaseChanged { newPhase }, log)) => {
-                            debug!("TTC contract {} is in phase {}", address, newPhase);
+                            debug!(parent: &monitor_span, "TTC contract is in phase {}", newPhase);
 
                             if newPhase == 2 {
                                 let block_number = log.block_number.unwrap() as i64;
@@ -95,7 +108,7 @@ impl EventsManager {
                                     Utc.timestamp_opt(seconds_since_epoch, 0).single().unwrap()
                                 };
 
-                                debug!("TTC contract {} has moved into trading phase", address);
+                                debug!(parent: &monitor_span, "TTC contract as moved into trading phase");
 
                                 let job = Job {
                                     address: address.as_slice().to_vec(),
@@ -105,11 +118,10 @@ impl EventsManager {
                                     error: None,
                                     completed_at: None,
                                 };
-
                                 db.create_job(&job).await.map_err(anyhow::Error::new)?;
-                                prover.prove_async(*ttc.address()).await?;
-
-                                debug!("Successfully processed phase 2, stopping monitoring");
+                                debug!(parent: &monitor_span, "Created job for TTC contract. Sending prove request, this could take a while...");
+                                prover.prove(*ttc.address()).await?;
+                                debug!(parent: &monitor_span, "Successfully processed phase 2, stopping monitor for TTC contract");
                                 break; // Stop the stream after processing phase 2
                             }
                         }
@@ -122,14 +134,14 @@ impl EventsManager {
             {
                 if let Err(e) = &result {
                     tracing::error!(
-                        "Monitor for TTC contract {} ended with error: {}",
-                        address,
+                        parent: &monitor_span,
+                        "Monitor for TTC contract ended with error: {}",
                         e
                     );
                 } else {
                     tracing::info!(
-                        "Monitor for TTC contract {} completed successfully",
-                        address
+                        parent: &monitor_span,
+                        "Monitor for TTC contract completed successfully",
                     );
                 }
             }

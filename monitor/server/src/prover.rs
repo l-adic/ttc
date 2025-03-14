@@ -46,9 +46,14 @@ pub mod remote {
     }
 
     impl Prover {
-        pub fn new(node_url: Url, prover_url: Url, db: Database) -> anyhow::Result<Self> {
+        pub fn new(
+            node_url: Url,
+            prover_url: Url,
+            db: Database,
+            prover_timeout_secs: u64,
+        ) -> anyhow::Result<Self> {
             let client = HttpClientBuilder::default()
-                .request_timeout(std::time::Duration::from_secs(300)) // 5 minutes to allow for cold starts
+                .request_timeout(std::time::Duration::from_secs(prover_timeout_secs)) // 5 minutes to allow for cold starts
                 .build(prover_url)?;
             Ok(Self {
                 node_url,
