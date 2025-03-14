@@ -61,7 +61,7 @@ write_files:
       -e DB_NAME=$${DB_NAME} \
       -e NODE_HOST=$${NODE_HOST} \
       -e NODE_PORT=$${NODE_PORT} \
-      -e PROVER_HOST=$${PROVER_PROTOCOL} \
+      -e PROVER_PROTOCOL=$${PROVER_PROTOCOL} \
       -e PROVER_HOST=$${PROVER_HOST} \
       ${var.monitor_image_repository}:${var.docker_image_tag} \
       /app/target/release/monitor-server'
