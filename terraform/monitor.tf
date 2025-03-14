@@ -49,6 +49,7 @@ write_files:
     Environment="NODE_PORT=8545"
     Environment="PROVER_PROTOCOL=https"
     Environment="PROVER_HOST=${trimprefix(google_cloud_run_v2_service.prover_server.uri, "https://")}"
+    Environment="PROVER_TIMEOUT_SECS=${var.monitor_prover_timeout_secs}"
     ExecStartPre=/usr/bin/timeout 300 /usr/bin/docker pull ${var.monitor_image_repository}:${var.docker_image_tag}
     ExecStart=/bin/bash -c '\
       /usr/bin/docker run --rm --name monitor \
@@ -63,6 +64,7 @@ write_files:
       -e NODE_PORT=$${NODE_PORT} \
       -e PROVER_PROTOCOL=$${PROVER_PROTOCOL} \
       -e PROVER_HOST=$${PROVER_HOST} \
+      -e PROVER_TIMEOUT_SECS=$${PROVER_TIMEOUT_SECS} \
       ${var.monitor_image_repository}:${var.docker_image_tag} \
       /app/target/release/monitor-server'
     ExecStop=/usr/bin/docker stop monitor

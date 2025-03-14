@@ -104,6 +104,11 @@ variable "monitor_rust_log_level" {
   default     = "info"
 }
 
+variable "monitor_prover_timeout_secs" {
+  description = "Timeout in seconds for prover requests from monitor"
+  type        = number
+}
+
 # Cloud SQL Configuration
 variable "database_instance_name" {
   description = "Name of the Cloud SQL instance"

@@ -104,7 +104,12 @@ impl AppEnv {
         }?
         .await;
         let node_url = app_config.node_url()?;
-        let prover = Prover::new(node_url.clone(), app_config.prover_url()?, db.clone())?;
+        let prover = Prover::new(
+            node_url.clone(),
+            app_config.prover_url()?,
+            db.clone(),
+            app_config.prover_timeout_secs,
+        )?;
         let events_manager = EventsManager::new(node_url.clone(), prover.clone(), db.clone());
         Ok(Self {
             db,
@@ -160,6 +165,9 @@ pub struct AppConfig {
 
     #[arg(long, env = "JSON_RPC_PORT", default_value = "3030")]
     pub json_rpc_port: u16,
+
+    #[arg(long, env = "PROVER_TIMEOUT_SECS", default_value = "300")]
+    pub prover_timeout_secs: u64,
 }
 
 impl AppConfig {

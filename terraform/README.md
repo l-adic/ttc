@@ -26,7 +26,15 @@ This Terraform configuration deploys the TTC project infrastructure on Google Cl
   - 16 vCPU, 32GB RAM
   - Scale to zero enabled
   - Internal access only
+  - Uses HTTPS on port 8080 (Cloud Run standard)
+  - Scales from zero on demand
   - Docker image: `elladic/ttc-prover-server:<tag>`
+
+- **Monitor-Prover Communication**:
+  - Monitor connects to Prover via HTTPS
+  - Uses Cloud Run's managed URL (no explicit port needed)
+  - Configurable timeout via monitor_prover_timeout_secs
+  - Handles cold starts and long computations
 
 - **Networking**:
   - Private VPC network
@@ -93,6 +101,10 @@ prover_cpu_count       = 16
 prover_memory_gb       = 32
 prover_rust_log_level  = "info"
 prover_risc0_dev_mode  = "true"
+
+# Monitor Server Configuration
+monitor_rust_log_level  = "info"
+monitor_prover_timeout_secs = 300  # Timeout for prover requests (also used by Cloud Run)
 
 # IAP Configuration
 iap_member_list = [
@@ -240,13 +252,34 @@ Note: The Prover Server is only accessible internally to the Monitor Server and 
 - Cloud Run service updates can be triggered by pushing new Docker images
 - Infrastructure changes should be made through Terraform
 
+## Viewing Service Logs
+
+1. **Monitor Server Logs**:
+   ```bash
+   # Live logs with timestamps
+   gcloud compute ssh monitor-server-xxxx --zone=us-central1-a --command="docker logs monitor -t -f"
+   ```
+
+2. **Prover Server Logs**:
+   ```bash
+   # View Cloud Run logs
+   gcloud run services logs read prover-server --region=us-central1 --format="table(timestamp.date('%Y-%m-%d %H:%M:%S'),severity,textPayload)" --limit=200
+   ```
+   Note: Cloud Run logs may show "no available instance" errors during cold starts. This is normal when scaling from zero.
+
 ## Troubleshooting
 
 1. **Cloud Run Service Not Starting**:
    - Check container logs in Cloud Console
-   - Verify port configuration matches (default: 8546 for prover)
+   - Cloud Run uses port 8080 internally (do not specify a different port)
    - Check environment variables are correct
    - Use `gcloud run services describe prover-server` for status
+   - Cold starts may take time due to zero-instance scaling
+   - Request timeouts are controlled by monitor_prover_timeout_secs:
+     * Affects both Cloud Run service timeout and monitor's HTTP client timeout
+     * Default is 300 seconds (5 minutes)
+     * Increase this value if prover operations take longer
+     * Note: Cloud Run will keep computing even if monitor times out
 
 2. **Database Creation Taking Too Long**:
    - Check operation status: `gcloud sql operations list --instance=ttc-postgres`

@@ -10,6 +10,10 @@ resource "google_cloud_run_v2_service" "prover_server" {
   location = var.gcp_region
   
   template {
+
+    # Request timeout for the service
+    timeout = "${var.monitor_prover_timeout_secs}s"
+
     containers {
       image = "${var.prover_image_repository}:${var.docker_image_tag}"
       
@@ -78,6 +82,17 @@ resource "google_cloud_run_v2_service" "prover_server" {
 
       # Command and arguments for the container
       command = ["/app/target/release/prover-server"]
+
+      # Increase startup timeout
+      startup_probe {
+        initial_delay_seconds = 1
+        failure_threshold = 20
+        period_seconds = 3
+        timeout_seconds = 2
+        tcp_socket {
+          port = 8080
+        }
+      }
     }
 
     scaling {
