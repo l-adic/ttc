@@ -3,6 +3,7 @@ NODE_HOST ?= localhost
 NODE_PORT ?= 8545
 MONITOR_HOST ?= localhost
 MONITOR_PORT ?= 3030
+PROVER_PROTOCOL ?= http
 PROVER_HOST ?= localhost
 PROVER_PORT ?= 3000
 
@@ -141,6 +142,7 @@ run-monitor-server: build-contracts ## Run the monitor server
 	DB_NAME=$(DB_NAME) \
 	NODE_HOST=$(NODE_HOST) \
 	NODE_PORT=$(NODE_PORT) \
+	PROVER_PROTOCOL=$(PROVER_PROTOCOL) \
 	PROVER_HOST=$(PROVER_HOST) \
 	PROVER_PORT=$(PROVER_PORT) \
 	JSON_RPC_PORT=$(MONITOR_PORT) \

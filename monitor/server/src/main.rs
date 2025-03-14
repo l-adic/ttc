@@ -137,6 +137,7 @@ impl MonitorApiServer for ProverApiImpl {
 async fn main() -> anyhow::Result<()> {
     init_console_subscriber();
     let cli = AppConfig::parse();
+    debug!("{}", serde_json::to_string_pretty(&cli).unwrap());
 
     // Define the server address
     let addr = {

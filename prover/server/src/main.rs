@@ -14,7 +14,7 @@ use prover_server::{
 use risc0_steel::alloy::primitives::Address;
 use sqlx::types::chrono;
 use std::net::SocketAddr;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 #[derive(Clone)]
 pub struct ProverApiImpl {
@@ -114,6 +114,7 @@ impl ProverApiServer for ProverApiImpl {
 async fn main() -> anyhow::Result<()> {
     init_console_subscriber();
     let cli = AppConfig::parse();
+    debug!("{}", serde_json::to_string_pretty(&cli).unwrap());
     // Define the server address
     let addr = {
         let host = "0.0.0.0";
