@@ -78,6 +78,17 @@ resource "google_cloud_run_v2_service" "prover_server" {
 
       # Command and arguments for the container
       command = ["/app/target/release/prover-server"]
+
+      # Increase startup timeout
+      startup_probe {
+        initial_delay_seconds = 30
+        failure_threshold    = 60  # Allow up to 30 minutes for startup (30s * 60)
+        period_seconds      = 30
+        timeout_seconds     = 10
+        tcp_socket {
+          port = 8080
+        }
+      }
     }
 
     scaling {

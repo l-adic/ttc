@@ -121,12 +121,13 @@ impl EventsManager {
             .await;
             {
                 if let Err(e) = &result {
-                    debug!(
+                    tracing::error!(
                         "Monitor for TTC contract {} ended with error: {}",
-                        address, e
+                        address,
+                        e
                     );
                 } else {
-                    debug!(
+                    tracing::info!(
                         "Monitor for TTC contract {} completed successfully",
                         address
                     );
@@ -135,7 +136,7 @@ impl EventsManager {
 
             result
         });
-        debug!("Spawned monitor thread for TTC contract {}", address);
+        tracing::info!("Spawned monitor thread for TTC contract {}", address);
         {
             let mut events = self.events.lock().await;
             events.insert(address, handle);
