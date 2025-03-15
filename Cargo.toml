@@ -5,9 +5,6 @@ members = [
     "host", 
     "methods",
     "monitor",
-    "monitor/server",
-    "prover",
-    "prover/server"
   ]
 
 [workspace.package]
@@ -47,5 +44,4 @@ risc0-ethereum-contracts = { git = "https://github.com/risc0/risc0-ethereum", ta
 ttc = { path = "ttc" }
 methods = {path = "methods" }
 host = {path = "host" }
-monitor-common = {path = "monitor"}
-prover-common = {path = "prover"}
+monitor = {path = "monitor"}

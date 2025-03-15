@@ -1,5 +1,5 @@
+use crate::db::schema::{Job, JobStatus, Proof};
 use chrono::{DateTime, Utc};
-use monitor_common::db::{Job, JobStatus, Proof};
 use sqlx::PgPool;
 
 // Database management struct

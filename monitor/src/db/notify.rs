@@ -1,7 +1,8 @@
 use anyhow::Result;
 use futures::{future, StreamExt};
-use monitor_common::pg_notify::{NotifyPayload, TypedChannel};
+use risc0_steel::alloy::{hex, primitives::Address};
 use sqlx::{postgres::PgListener, PgPool};
+use std::sync::LazyLock;
 use tokio::sync::mpsc;
 use tracing::{error, span, Level};
 
@@ -82,7 +83,7 @@ impl<T: NotifyPayload + Send + 'static> PgNotifier<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::app_env::{self, DB};
+    use crate::{app_config, db::DB};
     use sqlx::PgPool;
     use std::{str::FromStr, time::Duration};
 
@@ -118,7 +119,7 @@ mod tests {
     #[tokio::test]
     #[ignore = "requires postgres instance"]
     async fn test_sqlx_notify() -> Result<()> {
-        app_env::init_console_subscriber();
+        app_config::init_console_subscriber();
         eprintln!("[TEST] Starting SQLx notification test");
 
         let db = DB::new_from_environment().await?;
@@ -170,3 +171,32 @@ mod tests {
         Ok(())
     }
 }
+
+impl NotifyPayload for Address {
+    fn decode_payload(payload: &str) -> Result<Address, String> {
+        let address = hex::decode(payload).map_err(|x| x.to_string())?;
+        Ok(Address::from_slice(&address))
+    }
+}
+
+pub trait NotifyPayload: Sized {
+    fn decode_payload(payload: &str) -> Result<Self, String>;
+}
+
+#[derive(Clone)]
+pub struct TypedChannel<T: NotifyPayload> {
+    pub channel_name: String,
+    _phantom: std::marker::PhantomData<T>,
+}
+
+impl<T: NotifyPayload> TypedChannel<T> {
+    pub fn new(channel_name: &str) -> Self {
+        Self {
+            channel_name: channel_name.to_string(),
+            _phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+pub static JOB_CHANNEL: LazyLock<TypedChannel<Address>> =
+    LazyLock::new(|| TypedChannel::new("job_channel"));

@@ -1,4 +1,5 @@
 use anyhow::Result;
+use monitor::server::{app_config, db::DB};
 use sqlx::{Executor, PgPool};
 use tracing::info;
 
@@ -100,8 +101,8 @@ async fn create_schema(pool: &PgPool) -> Result<(), sqlx::Error> {
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    monitor_server::app_env::init_console_subscriber();
-    let db = monitor_server::app_env::DB::new_from_environment().await?;
+    app_config::init_console_subscriber();
+    let db = DB::new_from_environment().await?;
     match create_schema(&db.pool).await {
         Ok(_) => {
             info!("Database schema setup completed successfully.");

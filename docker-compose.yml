@@ -29,10 +29,10 @@ services:
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=postgres
+      - POSTGRES_DB=ttc
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 5
     networks:
@@ -99,7 +99,7 @@ services:
              "-H", "Content-Type: application/json", 
              "-d", '{"jsonrpc":"2.0","method":"healthCheck","params":[],"id":1}', 
              "http://localhost:3030"]
-      interval: 5s
+      interval: 10s
       timeout: 5s
       retries: 10
       start_period: 60s
@@ -116,11 +116,7 @@ services:
       - PROVER_PORT=3000
       - JSON_RPC_PORT=3030
     command: >
-      sh -c " 
-      DB_NAME=postgres DB_CREATE_NAME=ttc /app/target/release/create-db &&
-      /app/target/release/create-schema &&
-      /app/target/release/monitor-server
-      "
+      sh -c " /app/target/release/monitor-server"
     networks:
       - ttc-network
       - prover-network

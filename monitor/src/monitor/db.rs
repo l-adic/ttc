@@ -1,4 +1,4 @@
-use monitor_common::db::{Job, Proof};
+use crate::db::schema::{Job, Proof};
 use sqlx::PgPool;
 
 // Database management struct
@@ -65,6 +65,22 @@ impl Database {
         )
         .bind(address)
         .fetch_one(&self.pool)
+        .await
+    }
+
+    pub async fn get_proof_opt_by_address(
+        &self,
+        address: &[u8],
+    ) -> Result<Option<Proof>, sqlx::Error> {
+        sqlx::query_as(
+            r#"
+            SELECT address, proof, seal 
+            FROM proofs 
+            WHERE address = $1
+        "#,
+        )
+        .bind(address)
+        .fetch_optional(&self.pool)
         .await
     }
 }

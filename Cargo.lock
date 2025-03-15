@@ -2558,9 +2558,8 @@ dependencies = [
  "clap",
  "futures",
  "jsonrpsee",
- "monitor-common",
+ "monitor",
  "proptest",
- "prover-common",
  "rand",
  "risc0-steel",
  "serde",
@@ -3445,30 +3444,18 @@ dependencies = [
 ]
 
 [[package]]
-name = "monitor-common"
+name = "monitor"
 version = "0.1.0"
 dependencies = [
- "alloy",
- "chrono",
- "futures",
- "hex",
- "jsonrpsee",
- "serde",
- "sqlx",
-]
-
-[[package]]
-name = "monitor-server"
-version = "0.1.0"
-dependencies = [
- "alloy",
  "anyhow",
  "chrono",
  "clap",
  "futures",
  "jsonrpsee",
- "monitor-common",
- "prover-common",
+ "methods",
+ "risc0-ethereum-contracts",
+ "risc0-steel",
+ "risc0-zkvm",
  "serde",
  "serde_json",
  "sqlx",
@@ -4097,42 +4084,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.98",
-]
-
-[[package]]
-name = "prover-common"
-version = "0.1.0"
-dependencies = [
- "futures",
- "jsonrpsee",
- "risc0-steel",
- "serde",
-]
-
-[[package]]
-name = "prover-server"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "chrono",
- "clap",
- "futures",
- "jsonrpsee",
- "methods",
- "monitor-common",
- "prover-common",
- "risc0-ethereum-contracts",
- "risc0-steel",
- "risc0-zkvm",
- "serde",
- "serde_json",
- "sqlx",
- "time",
- "tokio",
- "tracing",
- "tracing-subscriber 0.3.19",
- "ttc",
- "url",
 ]
 
 [[package]]

@@ -1,16 +1,6 @@
-pub mod ttc_contract {
-    use risc0_steel::alloy::sol;
-
-    sol!(
-        #[sol(rpc, all_derives)]
-        TopTradingCycle,
-        "../../contract/out/TopTradingCycle.sol/TopTradingCycle.json"
-    );
-}
-
+use crate::ttc_contract::TopTradingCycle;
 use anyhow::{Context, Ok, Result};
 use methods::PROVABLE_TTC_ELF;
-use prover_common::rpc::Proof;
 use risc0_ethereum_contracts::encode_seal;
 use risc0_steel::{
     alloy::{
@@ -23,27 +13,28 @@ use risc0_steel::{
 };
 use risc0_zkvm::{default_prover, ExecutorEnv, ProverOpts, VerifierContext};
 use tracing::{info, instrument};
-use ttc_contract::TopTradingCycle;
 use url::Url;
+
+use super::{
+    db::Database,
+    types::{Proof, ProverT},
+};
 
 pub fn create_provider(node_url: Url) -> impl Provider<Http<Client>, Ethereum> + Clone {
     ProviderBuilder::new().on_http(node_url)
 }
 
-#[allow(async_fn_in_trait)]
-pub trait ProverT {
-    async fn prove(&self, address: Address) -> Result<Proof>;
-}
-
 #[derive(Clone)]
 pub struct Prover {
     node_url: Url,
+    db: Database,
 }
 
 impl Prover {
-    pub fn new(node_url: Url) -> Self {
+    pub fn new(node_url: &Url, db: &Database) -> Self {
         Self {
             node_url: node_url.clone(),
+            db: db.clone(),
         }
     }
 }
@@ -96,6 +87,16 @@ impl ProverT for Prover {
         let seal = encode_seal(&receipt).context("invalid receipt")?;
         let journal = receipt.journal.bytes;
 
-        Ok(Proof { journal, seal })
+        let proof = Proof { journal, seal };
+
+        self.db
+            .create_proof(&crate::db::schema::Proof {
+                address: address.as_slice().to_vec(),
+                proof: proof.journal.clone(),
+                seal: proof.seal.clone(),
+            })
+            .await?;
+
+        Ok(proof)
     }
 }

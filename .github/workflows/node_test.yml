@@ -107,6 +107,7 @@ jobs:
       if: github.event_name == 'schedule'
       run: |
         RISC0_DEV_MODE=false docker compose up -d
+        make create-schema
         make run-node-tests
     
     # Get short git SHA for tagging

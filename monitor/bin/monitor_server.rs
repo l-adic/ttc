@@ -1,22 +1,102 @@
-use alloy::primitives::Address;
 use clap::Parser;
 use jsonrpsee::{
     core::async_trait,
     server::Server,
     types::{ErrorObject, ErrorObjectOwned},
 };
-use monitor_common::{
-    pg_notify::JOB_CHANNEL,
-    rpc::{MonitorApiServer, Proof, ProofStatus},
+use monitor::server::{
+    app_config::init_console_subscriber,
+    db::{self, notify::JOB_CHANNEL, schema::JobStatus},
+    monitor::{
+        rpc::MonitorApiServer,
+        types::{Proof, ProofStatus},
+    },
+    ttc_contract, utils,
 };
-use monitor_server::app_env::{init_console_subscriber, AppConfig, AppEnv};
-use monitor_server::pg_notify::PgNotifier;
-use monitor_server::prover::ProverT;
+use risc0_steel::alloy::primitives::Address;
 use std::{net::SocketAddr, sync::Arc};
 use tracing::{debug, error, info};
 
+mod app_env {
+    use anyhow::Result;
+    use clap::Parser;
+    use monitor::server::{
+        app_config,
+        db::DB,
+        monitor::{db::Database, events_manager::EventsManager},
+        prover::remote::{self, Prover},
+    };
+    use serde::Serialize;
+    use url::Url;
+
+    #[derive(Parser, Serialize)]
+
+    pub struct AppConfig {
+        #[clap(flatten)]
+        base_config: app_config::AppBaseConfig,
+
+        #[arg(long, env = "JSON_RPC_PORT", default_value = "3000")]
+        pub json_rpc_port: u16,
+
+        #[arg(long, env = "PROVER_PROTOCOL", default_value = "http")]
+        pub prover_protocol: String,
+
+        /// Prover host
+        #[arg(long, env = "PROVER_HOST", default_value = "localhost")]
+        pub prover_host: String,
+
+        /// Prover port (optional, not needed for Cloud Run)
+        #[arg(long, env = "PROVER_PORT")]
+        pub prover_port: Option<String>,
+
+        #[arg(long, env = "PROVER_TIMEOUT_SECS", default_value = "300")]
+        pub prover_timeout_secs: u64,
+    }
+
+    impl AppConfig {
+        pub fn prover_url(&self) -> Result<Url, url::ParseError> {
+            let prover_url = match &self.prover_port {
+                Some(port) => format!("{}://{}:{}", self.prover_protocol, self.prover_host, port),
+                None => format!("{}://{}", self.prover_protocol, self.prover_host),
+            };
+            Url::parse(&prover_url)
+        }
+    }
+
+    pub struct AppEnv {
+        pub db: Database,
+        pub node_url: Url,
+        pub events_manager: EventsManager,
+    }
+
+    impl AppEnv {
+        pub async fn new(app_config: AppConfig) -> Result<Self> {
+            let db = {
+                let db = DB::new(app_config.base_config.db_config()).await?;
+                anyhow::Ok(Database::new(db.pool))
+            }?
+            .await;
+            let node_url = app_config.base_config.node_url()?;
+            let prover = {
+                let prover_url = app_config.prover_url()?;
+                let prover: remote::Prover =
+                    Prover::new(node_url.clone(), prover_url, app_config.prover_timeout_secs)?;
+                anyhow::Ok(prover)
+            }?;
+            Ok(Self {
+                db: db.clone(),
+                node_url: node_url.clone(),
+                events_manager: EventsManager::new(node_url, prover, db),
+            })
+        }
+    }
+}
+
+use app_env::{AppConfig, AppEnv};
+
 async fn listen_for_job_updates(env: Arc<AppEnv>) -> anyhow::Result<()> {
-    let notifier = PgNotifier::new(&env.db.pool(), JOB_CHANNEL.clone()).await?;
+    let notifier =
+        db::notify::PgNotifier::<Address>::new(&env.db.pool(), JOB_CHANNEL.clone()).await?;
     let mut subs = notifier.subscribe();
 
     // Clone the Arc to share ownership
@@ -41,9 +121,16 @@ struct ProverApiImpl {
 impl MonitorApiServer for ProverApiImpl {
     async fn get_proof(&self, address: Address) -> Result<Proof, ErrorObjectOwned> {
         debug!("Getting proof for address: {:#}", address);
-        let proof_opt = self.app_env.prover.get_proof(address).await;
+        let proof_opt = self
+            .app_env
+            .db
+            .get_proof_opt_by_address(address.as_slice())
+            .await;
         match proof_opt {
-            Ok(Some(proof)) => Ok(proof),
+            Ok(Some(proof)) => Ok(Proof {
+                journal: proof.proof,
+                seal: proof.seal,
+            }),
             Ok(None) => Err(ErrorObject::owned(
                 -32001,
                 "Proof not found".to_string(),
@@ -55,21 +142,25 @@ impl MonitorApiServer for ProverApiImpl {
 
     async fn get_proof_status(&self, address: Address) -> Result<ProofStatus, ErrorObjectOwned> {
         debug!("Getting proof status for address: {:#}", address);
-        let status_opt = self.app_env.prover.get_proof_status(address).await;
+        let status_opt = self.app_env.db.get_job_by_address(address.as_slice()).await;
         match status_opt {
-            Ok(Some(status)) => Ok(status),
-            Ok(None) => Err(ErrorObject::owned(
-                -32001,
-                "Proof not found".to_string(),
-                None::<()>,
-            )),
+            Ok(job) => {
+                let status = match job.status {
+                    JobStatus::Created => ProofStatus::Created,
+                    JobStatus::InProgress => ProofStatus::InProgress,
+                    JobStatus::Completed => ProofStatus::Completed,
+                    JobStatus::Errored => ProofStatus::Errored(job.error.unwrap_or_default()),
+                };
+
+                Ok(status)
+            }
             Err(err) => Err(ErrorObject::owned(-32001, err.to_string(), None::<()>)),
         }
     }
 
     async fn watch_contract(&self, address: Address) -> Result<(), ErrorObjectOwned> {
-        let provider = monitor_server::utils::create_provider(self.app_env.node_url.clone());
-        let ttc = monitor_server::ttc_contract::TopTradingCycle::new(address, provider);
+        let provider = utils::create_provider(self.app_env.node_url.clone());
+        let ttc = ttc_contract::TopTradingCycle::new(address, provider);
 
         // Get the phase and handle errors explicitly
         let phase = match ttc.currentPhase().call().await {

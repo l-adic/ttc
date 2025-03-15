@@ -36,10 +36,10 @@ build-contracts: build-methods ## Build smart contracts (requires guest)
 	cd contract && forge build
 
 build-prover: build-contracts
-	cargo build -p prover-server --release
+	cargo build -p monitor --bin prover-server --release -F server -F local_prover
 
 build-monitor: build-contracts
-	cargo build -p monitor-server --release
+	cargo build -p monitor --bin monitor-server --release -F server
 
 build-host: build-contracts ## Build the RISC Zero host program
 	cargo build -p host --release
@@ -66,7 +66,7 @@ clean: ## Clean build artifacts
 
 # Linting and formatting
 lint: ## Run code linters
-	RISC0_SKIP_BUILD=1 cargo clippy --workspace -- -D warnings
+	RISC0_SKIP_BUILD=1 cargo clippy --workspace --all-features -- -D warnings
 
 fmt: ## Format code
 	cargo fmt --all
@@ -111,7 +111,7 @@ create-db: ## Create the database
 	DB_NAME=postgres \
 	DB_CREATE_NAME=ttc \
 	RUST_LOG=debug \
-	cargo run --release --bin create-db
+	cargo run --release -p monitor --bin create-db -F server
 
 create-schema: ## Create the database schema (Must setup the database first via create-db)
 	DB_HOST=$(DB_HOST) \
@@ -120,7 +120,7 @@ create-schema: ## Create the database schema (Must setup the database first via 
 	DB_PASSWORD=$(DB_PASSWORD) \
 	DB_NAME=$(DB_NAME) \
 	RUST_LOG=debug \
-	cargo run --release --bin create-schema
+	cargo run --release -p monitor --bin create-schema -F server
 
 run-prover-server: build-contracts ## Run the prover server
 	DB_HOST=$(DB_HOST) \
@@ -132,7 +132,7 @@ run-prover-server: build-contracts ## Run the prover server
 	NODE_PORT=$(NODE_PORT) \
 	JSON_RPC_PORT=$(PROVER_PORT) \
     RISC0_DEV_MODE=${RISC0_DEV_MODE} \
-	cargo run --bin prover-server --release
+	cargo run -p monitor --bin prover-server -F server -F local_prover --release
 
 run-monitor-server: build-contracts ## Run the monitor server
 	DB_HOST=$(DB_HOST) \
@@ -146,4 +146,4 @@ run-monitor-server: build-contracts ## Run the monitor server
 	PROVER_HOST=$(PROVER_HOST) \
 	PROVER_PORT=$(PROVER_PORT) \
 	JSON_RPC_PORT=$(MONITOR_PORT) \
-	cargo run --bin monitor-server --release
+	cargo run -p monitor --bin monitor-server -F server --release

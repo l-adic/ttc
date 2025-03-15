@@ -1,13 +1,51 @@
 [package]
-name = "monitor-common"
+name = "monitor"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
-alloy.workspace = true
+anyhow.workspace = true
 chrono.workspace = true
+clap.workspace = true
 futures.workspace = true
-hex.workspace = true
-jsonrpsee = { workspace = true, features = ["client", "macros", "server"] }
+jsonrpsee = {workspace = true, features = ["client", "macros", "server"]}
 serde.workspace = true
+serde_json.workspace = true
 sqlx.workspace = true
+time.workspace = true
+tokio.workspace = true
+tokio-stream.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+url.workspace = true
+
+risc0-steel = { workspace = true, features = ["host"]}
+risc0-ethereum-contracts = { workspace = true, optional = true }
+risc0-zkvm = { workspace = true, optional = true }
+
+methods = {workspace = true, optional = true}
+
+[features]
+local_prover = ["dep:risc0-ethereum-contracts", "dep:risc0-zkvm", "dep:methods"]
+server = []
+client = []
+
+[[bin]]
+name = "create-db"
+path = "bin/create_db.rs"  
+required-features = ["server"]
+
+[[bin]]
+name = "create-schema"
+path = "bin/create_schema.rs"  
+required-features = ["server"]
+
+[[bin]]
+name = "prover-server"
+path = "bin/prover_server.rs"  
+required-features = ["local_prover", "server"]
+
+[[bin]]
+name = "monitor-server"
+path = "bin/monitor_server.rs"  
+required-features = ["server"]
