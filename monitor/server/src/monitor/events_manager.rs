@@ -1,16 +1,16 @@
+use super::db::Database;
 use crate::{
-    db::Database,
-    prover::{remote::Prover, ProverT},
+    db::schema::{Job, JobStatus},
+    prover::{remote::Prover, types::ProverT},
     ttc_contract::TopTradingCycle::{self, PhaseChanged},
 };
-use alloy::{
+use chrono::{TimeZone, Utc};
+use futures::StreamExt;
+use risc0_steel::alloy::{
     eips::BlockNumberOrTag,
     primitives::Address,
     providers::{ProviderBuilder, WsConnect},
 };
-use chrono::{TimeZone, Utc};
-use futures::StreamExt;
-use monitor_common::db::{Job, JobStatus};
 use std::collections::HashMap;
 use tokio::{sync::Mutex, task::JoinHandle};
 use tracing::{debug, span, Level};

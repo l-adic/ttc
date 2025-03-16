@@ -5,7 +5,6 @@ use host::contract::{
     ttc::TopTradingCycle::{self},
 };
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
-use monitor_common::rpc::ProofStatus;
 use proptest::{
     arbitrary::Arbitrary,
     strategy::{Strategy, ValueTree},
@@ -24,7 +23,8 @@ use risc0_steel::alloy::{
     signers::Signer,
     sol_types::SolValue,
 };
-use std::{collections::HashMap, str::FromStr, thread::sleep};
+use serde::Serialize;
+use std::{collections::HashMap, str::FromStr, thread::sleep, time::Duration};
 use time::macros::format_description;
 use tracing::{info, instrument};
 use tracing_subscriber::{
@@ -265,6 +265,7 @@ struct TestSetup {
     owner: PrivateKeySigner,
     actors: Vec<Actor>,
     monitor: HttpClient,
+    timeout: Duration,
 }
 
 fn make_token_preferences(
@@ -306,6 +307,7 @@ impl TestSetup {
             owner,
             actors,
             monitor,
+            timeout: Duration::from_secs(config.prover_timeout),
         })
     }
 
@@ -473,16 +475,19 @@ impl TestSetup {
         Ok(())
     }
 
-    async fn poll_until_proof_ready(&self, address: Address) -> Result<ProofStatus> {
+    async fn poll_until_proof_ready(
+        &self,
+        address: Address,
+    ) -> Result<monitor_api::types::ProofStatus> {
         loop {
             let status =
-                monitor_common::rpc::MonitorApiClient::get_proof_status(&self.monitor, address)
+                monitor_api::rpc::MonitorApiClient::get_proof_status(&self.monitor, address)
                     .await?;
             match status {
-                monitor_common::rpc::ProofStatus::Completed => {
+                monitor_api::types::ProofStatus::Completed => {
                     return Ok(status);
                 }
-                monitor_common::rpc::ProofStatus::Errored(_) => {
+                monitor_api::types::ProofStatus::Errored(_) => {
                     return Ok(status);
                 }
                 // not ready yet, delay 5 seconds and try again
@@ -509,7 +514,7 @@ async fn run_test_case(config: Config, p: Preferences<U256>) -> Result<()> {
         TopTradingCycle::new(setup.ttc, provider)
     };
     info!("Sending request to watch the contract");
-    monitor_common::rpc::MonitorApiClient::watch_contract(&setup.monitor, *ttc.address()).await?;
+    monitor_api::rpc::MonitorApiClient::watch_contract(&setup.monitor, *ttc.address()).await?;
     info!("Depositing tokens to contract");
     setup.deposit_tokens().await?;
     info!("Advancing phase to Rank");
@@ -522,13 +527,19 @@ async fn run_test_case(config: Config, p: Preferences<U256>) -> Result<()> {
     let (proof, seal) = {
         // this is a hack because the monitor probably still hasn't polled the event and started the proof job
         sleep(tokio::time::Duration::from_secs(2));
-        let status = &setup.poll_until_proof_ready(*ttc.address()).await?;
-        if let ProofStatus::Errored(e) = status {
+        info!(
+            "Polling the monitor for proof status, timeout is {} seconds",
+            setup.timeout.as_secs()
+        );
+        let status =
+            tokio::time::timeout(setup.timeout, setup.poll_until_proof_ready(*ttc.address()))
+                .await??;
+        if let monitor_api::types::ProofStatus::Errored(e) = status {
             Err(anyhow::anyhow!("Prover errored with message {}", e))
         } else {
             info!("Prover completed successfully");
             let resp =
-                monitor_common::rpc::MonitorApiClient::get_proof(&setup.monitor, *ttc.address())
+                monitor_api::rpc::MonitorApiClient::get_proof(&setup.monitor, *ttc.address())
                     .await?;
             let journal = TopTradingCycle::Journal::abi_decode(&resp.journal, true)?;
             Ok((journal, resp.seal))
@@ -587,7 +598,7 @@ pub fn init_console_subscriber() {
         .init();
 }
 
-#[derive(Clone, Parser)]
+#[derive(Clone, Parser, Serialize)]
 #[command(author, version, about, long_about = None)]
 struct Config {
     /// Node host
@@ -633,6 +644,9 @@ struct Config {
 
     #[arg(long, env = "MOCK_VERIFIER", default_value_t = false)]
     mock_verifier: bool,
+
+    #[arg(long, env = "PROVER_TIMEOUT", default_value_t = 1200)]
+    prover_timeout: u64,
 }
 
 impl Config {
@@ -651,6 +665,7 @@ impl Config {
 async fn main() -> Result<()> {
     init_console_subscriber();
     let cli = Config::parse();
+    info!("{}", serde_json::to_string_pretty(&cli).unwrap());
 
     let test_case = {
         let mut runner = TestRunner::default();

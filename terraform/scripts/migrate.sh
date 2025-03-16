@@ -17,8 +17,8 @@ DB_PASSWORD=$1
 
 # Build the migration binaries
 echo "Building migration tools..."
-cargo build --release --bin create-db
-cargo build --release --bin create-schema
+cargo build -p monitor --release --bin create-db
+cargo build -p monitor --release --bin create-schema
 
 # Set environment variables for the migration
 export DB_HOST=$DB_HOST

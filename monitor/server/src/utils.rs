@@ -1,4 +1,4 @@
-use alloy::{
+use risc0_steel::alloy::{
     network::Ethereum,
     providers::{Provider, ProviderBuilder},
     transports::http::{Client, Http},

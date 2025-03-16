@@ -1,20 +1,6 @@
-use alloy::primitives::Address;
+use super::types::{Proof, ProofStatus};
 use jsonrpsee::{proc_macros::rpc, types::ErrorObjectOwned};
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Proof {
-    pub journal: Vec<u8>,
-    pub seal: Vec<u8>,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ProofStatus {
-    Created,
-    InProgress,
-    Completed,
-    Errored(String),
-}
+use risc0_steel::alloy::primitives::Address;
 
 #[rpc(server, client)]
 pub trait MonitorApi {

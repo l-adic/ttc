@@ -1,13 +1,12 @@
 use std::env;
 
+use monitor_server::{app_config, db};
 use tracing::info;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    monitor_server::app_env::init_console_subscriber();
-    let conn = monitor_server::app_env::DB::new_from_environment()
-        .await?
-        .pool;
+    app_config::init_console_subscriber();
+    let conn = db::DB::new_from_environment().await?.pool;
     let db_name = env::var("DB_CREATE_NAME")?;
     info!("Creating database '{}'", db_name);
 

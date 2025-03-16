@@ -11,6 +11,7 @@ jsonrpsee = {workspace = true, features = ["client"]}
 proptest.workspace = true
 rand = "0.8"
 serde.workspace = true
+serde_json.workspace = true
 time.workspace = true
 tokio.workspace = true
 tracing.workspace = true
@@ -20,5 +21,4 @@ url.workspace = true
 risc0-steel = { workspace = true, features = ["host"]}
 
 ttc = { workspace = true, features = ["test"] }
-prover-common.workspace = true
-monitor-common.workspace = true
+monitor-api.workspace = true

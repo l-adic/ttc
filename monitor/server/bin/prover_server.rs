@@ -4,17 +4,67 @@ use jsonrpsee::{
     server::Server,
     types::{ErrorObject, ErrorObjectOwned},
 };
-use monitor_common::db::{self, JobStatus};
-use prover_common::rpc::{Proof, ProverApiServer};
-use prover_server::prover::ProverT;
-use prover_server::{
-    app_env::{init_console_subscriber, AppConfig, AppEnv},
-    prover,
+use monitor_server::{
+    app_config::init_console_subscriber,
+    db::{self, schema::JobStatus},
+    prover::{
+        rpc::ProverApiServer,
+        types::{Proof, ProverT},
+    },
+    ttc_contract, utils,
 };
 use risc0_steel::alloy::primitives::Address;
 use sqlx::types::chrono;
 use std::net::SocketAddr;
 use tracing::{debug, error, info};
+
+mod app_env {
+    use anyhow::Result;
+    use clap::Parser;
+    use monitor_server::{
+        app_config,
+        db::DB,
+        prover::{db::Database, local::Prover},
+    };
+    use serde::Serialize;
+    use url::Url;
+
+    #[derive(Parser, Serialize)]
+
+    pub struct AppConfig {
+        #[clap(flatten)]
+        base_config: app_config::AppBaseConfig,
+
+        #[arg(long, env = "JSON_RPC_PORT", default_value = "3000")]
+        pub json_rpc_port: u16,
+    }
+
+    #[derive(Clone)]
+    pub struct AppEnv {
+        pub db: Database,
+        pub prover: Prover,
+        pub node_url: Url,
+    }
+
+    impl AppEnv {
+        pub async fn new(app_config: AppConfig) -> Result<Self> {
+            let db = {
+                let db = DB::new(app_config.base_config.db_config()).await?;
+                anyhow::Ok(Database::new(db.pool))
+            }?
+            .await;
+            let node_url = app_config.base_config.node_url()?;
+            let prover = Prover::new(&node_url);
+            Ok(Self {
+                db,
+                prover,
+                node_url,
+            })
+        }
+    }
+}
+
+use app_env::AppEnv;
 
 #[derive(Clone)]
 pub struct ProverApiImpl {
@@ -27,8 +77,8 @@ impl ProverApiImpl {
     }
 
     async fn assert_in_trade_phase(&self, address: Address) -> Result<(), ErrorObjectOwned> {
-        let provider = prover::create_provider(self.app_env.node_url.clone());
-        let ttc = prover::ttc_contract::TopTradingCycle::new(address, provider);
+        let provider = utils::create_provider(self.app_env.node_url.clone());
+        let ttc = ttc_contract::TopTradingCycle::new(address, provider);
         let e_phase = ttc.currentPhase().call().await;
         match e_phase {
             Ok(phase) => {
@@ -53,12 +103,14 @@ impl ProverApiImpl {
         match proof {
             Ok(proof) => {
                 info!("Prover successful, writing to DB");
-                let db_proof = db::Proof {
-                    address: address.as_slice().to_vec(),
-                    proof: proof.journal.clone(),
-                    seal: proof.seal.clone(),
-                };
-                self.app_env.db.create_proof(&db_proof).await?;
+                self.app_env
+                    .db
+                    .create_proof(&db::schema::Proof {
+                        address: address.as_slice().to_vec(),
+                        proof: proof.journal.clone(),
+                        seal: proof.seal.clone(),
+                    })
+                    .await?;
                 let now = chrono::Utc::now();
                 self.app_env
                     .db
@@ -113,7 +165,7 @@ impl ProverApiServer for ProverApiImpl {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     init_console_subscriber();
-    let cli = AppConfig::parse();
+    let cli = app_env::AppConfig::parse();
     debug!("{}", serde_json::to_string_pretty(&cli).unwrap());
     // Define the server address
     let addr = {

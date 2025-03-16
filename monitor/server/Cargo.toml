@@ -4,14 +4,11 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
-alloy.workspace = true
 anyhow.workspace = true
 chrono.workspace = true
 clap.workspace = true
 futures.workspace = true
 jsonrpsee = {workspace = true, features = ["client", "macros", "server"]}
-monitor-common.workspace = true
-prover-common.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true
@@ -22,6 +19,16 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 url.workspace = true
 
+risc0-steel = { workspace = true, features = ["host"]}
+risc0-ethereum-contracts = { workspace = true, optional = true }
+risc0-zkvm = { workspace = true, optional = true }
+
+methods = {workspace = true, optional = true}
+monitor-api.workspace = true
+
+[features]
+local_prover = ["dep:risc0-ethereum-contracts", "dep:risc0-zkvm", "dep:methods"]
+
 [[bin]]
 name = "create-db"
 path = "bin/create_db.rs"  
@@ -29,3 +36,8 @@ path = "bin/create_db.rs"
 [[bin]]
 name = "create-schema"
 path = "bin/create_schema.rs"  
+
+[[bin]]
+name = "prover-server"
+path = "bin/prover_server.rs"  
+required-features = ["local_prover"]
