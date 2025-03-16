@@ -45,7 +45,7 @@ build-host: build-contracts ## Build the RISC Zero host program
 	cargo build -p host --release
 
 build: build-contracts ## Build all components (guests, contracts, host)
-	cargo build --release --workspace
+	cargo build --release --workspace --bin monitor-server -F local_prover --bin prover-server
 
 # Test commands
 test: build-contracts ## Run all test suites (excluding integration tests)
