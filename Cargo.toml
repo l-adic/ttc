@@ -44,7 +44,6 @@ risc0-ethereum-contracts = { git = "https://github.com/risc0/risc0-ethereum", ta
 
 ttc = { path = "ttc" }
 methods = {path = "methods" }
-host = {path = "host" }
 monitor-server = {path = "monitor/server"}
 monitor-api = {path = "monitor/api"}
 

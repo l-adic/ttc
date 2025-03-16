@@ -103,7 +103,8 @@ impl ProverApiImpl {
         match proof {
             Ok(proof) => {
                 info!("Prover successful, writing to DB");
-                self.app_env.db
+                self.app_env
+                    .db
                     .create_proof(&db::schema::Proof {
                         address: address.as_slice().to_vec(),
                         proof: proof.journal.clone(),

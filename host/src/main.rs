@@ -23,7 +23,7 @@ use risc0_steel::alloy::{
     signers::Signer,
     sol_types::SolValue,
 };
-use std::{collections::HashMap, str::FromStr, thread::sleep};
+use std::{collections::HashMap, str::FromStr, thread::sleep, time::Duration};
 use time::macros::format_description;
 use tracing::{info, instrument};
 use tracing_subscriber::{
@@ -264,6 +264,7 @@ struct TestSetup {
     owner: PrivateKeySigner,
     actors: Vec<Actor>,
     monitor: HttpClient,
+    timeout: Duration,
 }
 
 fn make_token_preferences(
@@ -298,6 +299,11 @@ impl TestSetup {
             actor::create_actors(config.clone(), ttc, owner.clone(), prefs).await
         }?;
         let monitor = HttpClientBuilder::default().build(config.monitor_url()?)?;
+        let duration = if config.mock_verifier {
+            Duration::from_secs(10) // 10s for mock prover
+        } else {
+            Duration::from_secs(1200) // 20min for real prover
+        };
         Ok(Self {
             config: config.clone(),
             node_url: node_url.clone(),
@@ -305,6 +311,7 @@ impl TestSetup {
             owner,
             actors,
             monitor,
+            timeout: duration,
         })
     }
 
@@ -524,7 +531,9 @@ async fn run_test_case(config: Config, p: Preferences<U256>) -> Result<()> {
     let (proof, seal) = {
         // this is a hack because the monitor probably still hasn't polled the event and started the proof job
         sleep(tokio::time::Duration::from_secs(2));
-        let status = &setup.poll_until_proof_ready(*ttc.address()).await?;
+        let status =
+            tokio::time::timeout(setup.timeout, setup.poll_until_proof_ready(*ttc.address()))
+                .await??;
         if let monitor_api::types::ProofStatus::Errored(e) = status {
             Err(anyhow::anyhow!("Prover errored with message {}", e))
         } else {
