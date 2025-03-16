@@ -4,13 +4,13 @@ use jsonrpsee::{
     server::Server,
     types::{ErrorObject, ErrorObjectOwned},
 };
-use monitor::server::{
+use monitor_api::{
+    rpc::MonitorApiServer,
+    types::{Proof, ProofStatus},
+};
+use monitor_server::{
     app_config::init_console_subscriber,
     db::{self, notify::JOB_CHANNEL, schema::JobStatus},
-    monitor::{
-        rpc::MonitorApiServer,
-        types::{Proof, ProofStatus},
-    },
     ttc_contract, utils,
 };
 use risc0_steel::alloy::primitives::Address;
@@ -20,7 +20,7 @@ use tracing::{debug, error, info};
 mod app_env {
     use anyhow::Result;
     use clap::Parser;
-    use monitor::server::{
+    use monitor_server::{
         app_config,
         db::DB,
         monitor::{db::Database, events_manager::EventsManager},

@@ -1,6 +1,6 @@
 use std::env;
 
-use monitor::server::{app_config, db};
+use monitor_server::{app_config, db};
 use tracing::info;
 
 #[tokio::main]

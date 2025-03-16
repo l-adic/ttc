@@ -1,5 +1,5 @@
 [package]
-name = "monitor"
+name = "monitor-server"
 version.workspace = true
 edition.workspace = true
 
@@ -24,28 +24,20 @@ risc0-ethereum-contracts = { workspace = true, optional = true }
 risc0-zkvm = { workspace = true, optional = true }
 
 methods = {workspace = true, optional = true}
+monitor-api.workspace = true
 
 [features]
 local_prover = ["dep:risc0-ethereum-contracts", "dep:risc0-zkvm", "dep:methods"]
-server = []
-client = []
 
 [[bin]]
 name = "create-db"
 path = "bin/create_db.rs"  
-required-features = ["server"]
 
 [[bin]]
 name = "create-schema"
 path = "bin/create_schema.rs"  
-required-features = ["server"]
 
 [[bin]]
 name = "prover-server"
 path = "bin/prover_server.rs"  
-required-features = ["local_prover", "server"]
-
-[[bin]]
-name = "monitor-server"
-path = "bin/monitor_server.rs"  
-required-features = ["server"]
+required-features = ["local_prover"]

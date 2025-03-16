@@ -4,7 +4,7 @@ use jsonrpsee::{
     server::Server,
     types::{ErrorObject, ErrorObjectOwned},
 };
-use monitor::server::{
+use monitor_server::{
     app_config::init_console_subscriber,
     db::schema::JobStatus,
     prover::{
@@ -21,7 +21,7 @@ use tracing::{debug, error, info};
 mod app_env {
     use anyhow::Result;
     use clap::Parser;
-    use monitor::server::{
+    use monitor_server::{
         app_config,
         db::DB,
         prover::{db::Database, local::Prover},

@@ -1,5 +1,5 @@
 use anyhow::Result;
-use monitor::server::{app_config, db::DB};
+use monitor_server::{app_config, db::DB};
 use sqlx::{Executor, PgPool};
 use tracing::info;
 

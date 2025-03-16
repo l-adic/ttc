@@ -36,10 +36,10 @@ build-contracts: build-methods ## Build smart contracts (requires guest)
 	cd contract && forge build
 
 build-prover: build-contracts
-	cargo build -p monitor --bin prover-server --release -F server -F local_prover
+	cargo build -p monitor-server --bin prover-server --release -F local_prover
 
 build-monitor: build-contracts
-	cargo build -p monitor --bin monitor-server --release -F server
+	cargo build -p monitor-server --bin monitor-server --release
 
 build-host: build-contracts ## Build the RISC Zero host program
 	cargo build -p host --release
@@ -111,7 +111,7 @@ create-db: ## Create the database
 	DB_NAME=postgres \
 	DB_CREATE_NAME=ttc \
 	RUST_LOG=debug \
-	cargo run --release -p monitor --bin create-db -F server
+	cargo run --release -p monitor-server --bin create-db
 
 create-schema: ## Create the database schema (Must setup the database first via create-db)
 	DB_HOST=$(DB_HOST) \
@@ -120,7 +120,7 @@ create-schema: ## Create the database schema (Must setup the database first via 
 	DB_PASSWORD=$(DB_PASSWORD) \
 	DB_NAME=$(DB_NAME) \
 	RUST_LOG=debug \
-	cargo run --release -p monitor --bin create-schema -F server
+	cargo run --release -p monitor-server --bin create-schema
 
 run-prover-server: build-contracts ## Run the prover server
 	DB_HOST=$(DB_HOST) \
@@ -132,7 +132,7 @@ run-prover-server: build-contracts ## Run the prover server
 	NODE_PORT=$(NODE_PORT) \
 	JSON_RPC_PORT=$(PROVER_PORT) \
     RISC0_DEV_MODE=${RISC0_DEV_MODE} \
-	cargo run -p monitor --bin prover-server -F server -F local_prover --release
+	cargo run -p monitor --bin prover-server -F local_prover --release
 
 run-monitor-server: build-contracts ## Run the monitor server
 	DB_HOST=$(DB_HOST) \
@@ -146,4 +146,4 @@ run-monitor-server: build-contracts ## Run the monitor server
 	PROVER_HOST=$(PROVER_HOST) \
 	PROVER_PORT=$(PROVER_PORT) \
 	JSON_RPC_PORT=$(MONITOR_PORT) \
-	cargo run -p monitor --bin monitor-server -F server --release
+	cargo run -p monitor-server --bin monitor-server --release

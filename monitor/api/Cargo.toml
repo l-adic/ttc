@@ -1,0 +1,12 @@
+[package]
+name = "monitor-api"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+risc0-steel.workspace = true
+anyhow.workspace = true
+jsonrpsee = {workspace = true, features = ["client", "macros", "server"]}
+serde.workspace = true
+serde_json.workspace = true
+url.workspace = true

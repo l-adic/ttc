@@ -475,16 +475,16 @@ impl TestSetup {
     async fn poll_until_proof_ready(
         &self,
         address: Address,
-    ) -> Result<monitor::client::types::ProofStatus> {
+    ) -> Result<monitor_api::types::ProofStatus> {
         loop {
             let status =
-                monitor::client::rpc::MonitorApiClient::get_proof_status(&self.monitor, address)
+                monitor_api::rpc::MonitorApiClient::get_proof_status(&self.monitor, address)
                     .await?;
             match status {
-                monitor::client::types::ProofStatus::Completed => {
+                monitor_api::types::ProofStatus::Completed => {
                     return Ok(status);
                 }
-                monitor::client::types::ProofStatus::Errored(_) => {
+                monitor_api::types::ProofStatus::Errored(_) => {
                     return Ok(status);
                 }
                 // not ready yet, delay 5 seconds and try again
@@ -511,7 +511,7 @@ async fn run_test_case(config: Config, p: Preferences<U256>) -> Result<()> {
         TopTradingCycle::new(setup.ttc, provider)
     };
     info!("Sending request to watch the contract");
-    monitor::client::rpc::MonitorApiClient::watch_contract(&setup.monitor, *ttc.address()).await?;
+    monitor_api::rpc::MonitorApiClient::watch_contract(&setup.monitor, *ttc.address()).await?;
     info!("Depositing tokens to contract");
     setup.deposit_tokens().await?;
     info!("Advancing phase to Rank");
@@ -525,12 +525,12 @@ async fn run_test_case(config: Config, p: Preferences<U256>) -> Result<()> {
         // this is a hack because the monitor probably still hasn't polled the event and started the proof job
         sleep(tokio::time::Duration::from_secs(2));
         let status = &setup.poll_until_proof_ready(*ttc.address()).await?;
-        if let monitor::client::types::ProofStatus::Errored(e) = status {
+        if let monitor_api::types::ProofStatus::Errored(e) = status {
             Err(anyhow::anyhow!("Prover errored with message {}", e))
         } else {
             info!("Prover completed successfully");
             let resp =
-                monitor::client::rpc::MonitorApiClient::get_proof(&setup.monitor, *ttc.address())
+                monitor_api::rpc::MonitorApiClient::get_proof(&setup.monitor, *ttc.address())
                     .await?;
             let journal = TopTradingCycle::Journal::abi_decode(&resp.journal, true)?;
             Ok((journal, resp.seal))

@@ -2558,7 +2558,7 @@ dependencies = [
  "clap",
  "futures",
  "jsonrpsee",
- "monitor",
+ "monitor-api",
  "proptest",
  "rand",
  "risc0-steel",
@@ -3444,7 +3444,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "monitor"
+name = "monitor-api"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "jsonrpsee",
+ "risc0-steel",
+ "serde",
+ "serde_json",
+ "url",
+]
+
+[[package]]
+name = "monitor-server"
 version = "0.1.0"
 dependencies = [
  "anyhow",
@@ -3453,6 +3465,7 @@ dependencies = [
  "futures",
  "jsonrpsee",
  "methods",
+ "monitor-api",
  "risc0-ethereum-contracts",
  "risc0-steel",
  "risc0-zkvm",

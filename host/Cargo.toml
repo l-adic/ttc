@@ -20,4 +20,4 @@ url.workspace = true
 risc0-steel = { workspace = true, features = ["host"]}
 
 ttc = { workspace = true, features = ["test"] }
-monitor = {workspace = true, features = ["client"] }
+monitor-api.workspace = true
