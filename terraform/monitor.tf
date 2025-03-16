@@ -54,6 +54,7 @@ write_files:
     ExecStart=/bin/bash -c '\
       /usr/bin/docker run --rm --name monitor \
       -p 3030:3030 \
+      -e JSON_RPC_PORT=3030 \
       -e RUST_LOG=$${RUST_LOG} \
       -e DB_HOST=$${DB_HOST} \
       -e DB_PORT=$${DB_PORT} \
