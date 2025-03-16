@@ -3,6 +3,3 @@ docker/
 Dockerfile
 .dockerignore
 docker-compose.yml
-
-# Common files to exclude
-.git/
