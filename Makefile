@@ -38,6 +38,11 @@ build-contracts: build-methods ## Build smart contracts (requires guest)
 build-prover: build-contracts
 	cargo build -p monitor-server --bin prover-server --release -F local_prover
 
+build-prover-cuda: build-contracts ## Build the RISC Zero prover with CUDA support
+    RUSTFLAGS="-C target-cpu=native" \
+	cargo build -p monitor-server --bin prover-server --release -F local_prover -F cuda
+
+
 build-monitor: build-contracts
 	cargo build -p monitor-server --bin monitor-server --release
 
