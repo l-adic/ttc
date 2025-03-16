@@ -43,7 +43,8 @@ services:
     mem_limit: 8g
     build:
       context: .
-      dockerfile: docker/prover-server/Dockerfile
+      dockerfile: docker/servers/Dockerfile
+      target: prover-server
     ports:
       - "${JSON_RPC_PORT:-3000}:3000"
     depends_on:
@@ -51,17 +52,6 @@ services:
         condition: service_started
       postgres:
         condition: service_healthy
-      monitor-server:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "-s", "-X", "POST", 
-             "-H", "Content-Type: application/json", 
-             "-d", '{"jsonrpc":"2.0","method":"healthCheck","params":[],"id":1}', 
-             "http://localhost:3000"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 60s
     environment:
       - RUST_LOG=${RUST_LOG:-info}
       - RISC0_DEV_MODE=${RISC0_DEV_MODE:-true}
@@ -86,7 +76,8 @@ services:
     mem_limit: 4g
     build:
       context: .
-      dockerfile: docker/monitor-server/Dockerfile
+      dockerfile: docker/servers/Dockerfile
+      target: monitor-server
     ports:
       - "${JSON_RPC_PORT:-3030}:3030"
     depends_on:
@@ -94,15 +85,8 @@ services:
         condition: service_started
       postgres:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "-s", "-X", "POST", 
-             "-H", "Content-Type: application/json", 
-             "-d", '{"jsonrpc":"2.0","method":"healthCheck","params":[],"id":1}', 
-             "http://localhost:3030"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 60s
+      prover-server:
+        condition: service_started
     environment:
       - RUST_LOG=${RUST_LOG:-info}
       - DB_HOST=postgres
@@ -116,7 +100,7 @@ services:
       - PROVER_PORT=3000
       - JSON_RPC_PORT=3030
     command: >
-      sh -c " /app/target/release/monitor-server"
+      sh -c "/app/target/release/monitor-server"
     networks:
       - ttc-network
       - prover-network

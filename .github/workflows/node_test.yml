@@ -61,18 +61,20 @@ jobs:
         # Build prover-server image
         echo "Building prover-server image..."
         DOCKER_BUILDKIT=1 docker build \
+          --target prover-server \
           --tag elladic/ttc-prover-server:local \
           --cache-from elladic/ttc-prover-server:cache \
           --build-arg BUILDKIT_INLINE_CACHE=1 \
-          -f docker/prover-server/Dockerfile .
+          -f docker/servers/Dockerfile .
 
         # Build monitor-server image
         echo "Building monitor-server image..."
         DOCKER_BUILDKIT=1 docker build \
+          --target monitor-server \
           --tag elladic/ttc-monitor-server:local \
           --cache-from elladic/ttc-monitor-server:cache \
           --build-arg BUILDKIT_INLINE_CACHE=1 \
-          -f docker/monitor-server/Dockerfile .
+          -f docker/servers/Dockerfile .
           
         # Debug: List directory contents to locate Dockerfile
         echo "Contents of ./docker/anvil:"

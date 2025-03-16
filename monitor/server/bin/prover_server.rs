@@ -6,7 +6,7 @@ use jsonrpsee::{
 };
 use monitor_server::{
     app_config::init_console_subscriber,
-    db::schema::JobStatus,
+    db::{self, schema::JobStatus},
     prover::{
         rpc::ProverApiServer,
         types::{Proof, ProverT},
@@ -54,7 +54,7 @@ mod app_env {
             }?
             .await;
             let node_url = app_config.base_config.node_url()?;
-            let prover = Prover::new(&node_url, &db);
+            let prover = Prover::new(&node_url);
             Ok(Self {
                 db,
                 prover,
@@ -103,6 +103,13 @@ impl ProverApiImpl {
         match proof {
             Ok(proof) => {
                 info!("Prover successful, writing to DB");
+                self.app_env.db
+                    .create_proof(&db::schema::Proof {
+                        address: address.as_slice().to_vec(),
+                        proof: proof.journal.clone(),
+                        seal: proof.seal.clone(),
+                    })
+                    .await?;
                 let now = chrono::Utc::now();
                 self.app_env
                     .db

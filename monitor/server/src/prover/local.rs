@@ -15,10 +15,7 @@ use risc0_zkvm::{default_prover, ExecutorEnv, ProverOpts, VerifierContext};
 use tracing::{info, instrument};
 use url::Url;
 
-use super::{
-    db::Database,
-    types::{Proof, ProverT},
-};
+use super::types::{Proof, ProverT};
 
 pub fn create_provider(node_url: Url) -> impl Provider<Http<Client>, Ethereum> + Clone {
     ProviderBuilder::new().on_http(node_url)
@@ -27,14 +24,12 @@ pub fn create_provider(node_url: Url) -> impl Provider<Http<Client>, Ethereum> +
 #[derive(Clone)]
 pub struct Prover {
     node_url: Url,
-    db: Database,
 }
 
 impl Prover {
-    pub fn new(node_url: &Url, db: &Database) -> Self {
+    pub fn new(node_url: &Url) -> Self {
         Self {
             node_url: node_url.clone(),
-            db: db.clone(),
         }
     }
 }
@@ -88,14 +83,6 @@ impl ProverT for Prover {
         let journal = receipt.journal.bytes;
 
         let proof = Proof { journal, seal };
-
-        self.db
-            .create_proof(&crate::db::schema::Proof {
-                address: address.as_slice().to_vec(),
-                proof: proof.journal.clone(),
-                seal: proof.seal.clone(),
-            })
-            .await?;
 
         Ok(proof)
     }

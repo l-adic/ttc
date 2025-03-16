@@ -26,6 +26,7 @@ windows:
           NODE_PORT=8545
           JSON_RPC_PORT=3000
           RISC0_DEV_MODE=true
+          RUST_LOG=debug
           make run-prover-server
         - >
           DB_HOST=localhost
@@ -38,6 +39,7 @@ windows:
           PROVER_HOST=localhost
           PROVER_PORT=3000
           JSON_RPC_PORT=3030
+          RUST_LOG=debug
           make run-monitor-server
   - system:
       panes:

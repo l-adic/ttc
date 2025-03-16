@@ -132,7 +132,7 @@ run-prover-server: build-contracts ## Run the prover server
 	NODE_PORT=$(NODE_PORT) \
 	JSON_RPC_PORT=$(PROVER_PORT) \
     RISC0_DEV_MODE=${RISC0_DEV_MODE} \
-	cargo run -p monitor --bin prover-server -F local_prover --release
+	cargo run -p monitor-server --bin prover-server -F local_prover --release
 
 run-monitor-server: build-contracts ## Run the monitor server
 	DB_HOST=$(DB_HOST) \
