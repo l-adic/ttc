@@ -34,7 +34,7 @@ RUN which r0vm > /app/r0vm_path
 
 # Copy the entire repository and build both binaries
 COPY . .
-RUN cargo build --release
+RUN make build
 
 # Create monitor-server image
 FROM ubuntu:24.04 AS monitor-server
