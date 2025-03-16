@@ -23,6 +23,7 @@ use risc0_steel::alloy::{
     signers::Signer,
     sol_types::SolValue,
 };
+use serde::Serialize;
 use std::{collections::HashMap, str::FromStr, thread::sleep, time::Duration};
 use time::macros::format_description;
 use tracing::{info, instrument};
@@ -299,11 +300,6 @@ impl TestSetup {
             actor::create_actors(config.clone(), ttc, owner.clone(), prefs).await
         }?;
         let monitor = HttpClientBuilder::default().build(config.monitor_url()?)?;
-        let duration = if config.mock_verifier {
-            Duration::from_secs(10) // 10s for mock prover
-        } else {
-            Duration::from_secs(1200) // 20min for real prover
-        };
         Ok(Self {
             config: config.clone(),
             node_url: node_url.clone(),
@@ -311,7 +307,7 @@ impl TestSetup {
             owner,
             actors,
             monitor,
-            timeout: duration,
+            timeout: Duration::from_secs(config.prover_timeout),
         })
     }
 
@@ -531,6 +527,10 @@ async fn run_test_case(config: Config, p: Preferences<U256>) -> Result<()> {
     let (proof, seal) = {
         // this is a hack because the monitor probably still hasn't polled the event and started the proof job
         sleep(tokio::time::Duration::from_secs(2));
+        info!(
+            "Polling the monitor for proof status, timeout is {} seconds",
+            setup.timeout.as_secs()
+        );
         let status =
             tokio::time::timeout(setup.timeout, setup.poll_until_proof_ready(*ttc.address()))
                 .await??;
@@ -598,7 +598,7 @@ pub fn init_console_subscriber() {
         .init();
 }
 
-#[derive(Clone, Parser)]
+#[derive(Clone, Parser, Serialize)]
 #[command(author, version, about, long_about = None)]
 struct Config {
     /// Node host
@@ -644,6 +644,9 @@ struct Config {
 
     #[arg(long, env = "MOCK_VERIFIER", default_value_t = false)]
     mock_verifier: bool,
+
+    #[arg(long, env = "PROVER_TIMEOUT", default_value_t = 1200)]
+    prover_timeout: u64,
 }
 
 impl Config {
@@ -662,6 +665,7 @@ impl Config {
 async fn main() -> Result<()> {
     init_console_subscriber();
     let cli = Config::parse();
+    info!("{}", serde_json::to_string_pretty(&cli).unwrap());
 
     let test_case = {
         let mut runner = TestRunner::default();

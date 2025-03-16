@@ -2563,6 +2563,7 @@ dependencies = [
  "rand",
  "risc0-steel",
  "serde",
+ "serde_json",
  "time",
  "tokio",
  "tracing",

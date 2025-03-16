@@ -87,6 +87,7 @@ run-node-tests-mock: build-contracts ## Run node tests with mock verifier
 	MONITOR_HOST=$(MONITOR_HOST) \
 	MONITOR_PORT=$(MONITOR_PORT) \
 	MAX_ACTORS=20 \
+	PROVER_TIMEOUT=60 \
 	cargo run --bin host --release -- \
 		--chain-id $(CHAIN_ID) \
 		--owner-key $(OWNER_KEY) \
@@ -99,6 +100,7 @@ run-node-tests: build-contracts ## Run node tests with real verifier
 	MONITOR_HOST=$(MONITOR_HOST) \
 	MONITOR_PORT=$(MONITOR_PORT) \
 	MAX_ACTORS=3 \
+	PROVER_TIMEOUT=3000 \
 	cargo run --bin host --release -- \
 		--chain-id $(CHAIN_ID) \
 		--owner-key $(OWNER_KEY)
