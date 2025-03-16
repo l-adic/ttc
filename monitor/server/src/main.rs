@@ -35,7 +35,7 @@ mod app_env {
         #[clap(flatten)]
         base_config: app_config::AppBaseConfig,
 
-        #[arg(long, env = "JSON_RPC_PORT", default_value = "3000")]
+        #[arg(long, env = "JSON_RPC_PORT", default_value = "3030")]
         pub json_rpc_port: u16,
 
         #[arg(long, env = "PROVER_PROTOCOL", default_value = "http")]
