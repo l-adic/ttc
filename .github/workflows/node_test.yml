@@ -102,6 +102,7 @@ jobs:
       if: github.event_name != 'schedule'
       run: |
         RISC0_DEV_MODE=true docker compose up -d
+        make build-contracts
         make create-schema
         make run-node-tests-mock
     
@@ -110,6 +111,7 @@ jobs:
       if: github.event_name == 'schedule'
       run: |
         RISC0_DEV_MODE=false docker compose up -d
+        make build-contracts
         make create-schema
         make run-node-tests
     
