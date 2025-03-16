@@ -24,7 +24,7 @@ RUN /root/.risc0/bin/rzup install r0vm 1.2.4
 
 # Install Foundry
 RUN curl -L https://foundry.paradigm.xyz | bash
-RUN /root/.foundry/bin/foundryup
+RUN /root/.foundry/bin/foundryup --install 0.3.0 
 ENV PATH="/root/.foundry/bin:${PATH}"
 
 # Set the working directory
