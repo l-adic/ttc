@@ -9,6 +9,9 @@ vpc_network_name = "ttc-network"
 # Docker Image Configuration
 docker_image_tag = "latest"  # Replace with your desired tag
 
+# GPU-enabled images
+docker_cuda_image_tag = "latest"  # Tag for GPU-enabled prover
+
 # Anvil Node Configuration
 anvil_image_repository  = "elladic/anvil-node"
 anvil_machine_type     = "e2-standard-2"  # 2 vCPU, 8GB RAM
@@ -23,6 +26,11 @@ prover_memory_gb       = 32    # Memory in GB
 prover_rust_log_level  = "info"
 prover_risc0_dev_mode  = "true"
 prover_port            = 3000
+
+# GPU-enabled prover
+prover_cuda_image_repository = "elladic/ttc-prover-server-cuda"
+enable_gpu_prover           = true    # Set to false to disable GPU-enabled prover
+gpu_count                   = 1       # 1-2 GPUs supported in Cloud Run (requires quota)
 
 # Monitor Server Configuration
 monitor_image_repository = "elladic/ttc-monitor-server"

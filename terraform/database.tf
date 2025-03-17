@@ -50,15 +50,6 @@ resource "google_sql_database" "ttc" {
   project  = var.gcp_project_id
 }
 
-# Create postgres superuser
-resource "google_sql_user" "postgres" {
-  name     = "postgres"
-  instance = google_sql_database_instance.ttc.name
-  password = var.database_password
-  project  = var.gcp_project_id
-  type     = "BUILT_IN"  # This makes it a superuser
-}
-
 # Create application user
 resource "google_sql_user" "ttc" {
   name     = var.database_username

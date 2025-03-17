@@ -645,7 +645,7 @@ struct Config {
     #[arg(long, env = "MOCK_VERIFIER", default_value_t = false)]
     mock_verifier: bool,
 
-    #[arg(long, env = "PROVER_TIMEOUT", default_value_t = 1200)]
+    #[arg(long, env = "PROVER_TIMEOUT", default_value_t = 120)]
     prover_timeout: u64,
 }
 

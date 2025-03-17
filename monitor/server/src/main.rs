@@ -49,8 +49,8 @@ mod app_env {
         #[arg(long, env = "PROVER_PORT")]
         pub prover_port: Option<String>,
 
-        #[arg(long, env = "PROVER_TIMEOUT_SECS", default_value = "300")]
-        pub prover_timeout_secs: u64,
+        #[arg(long, env = "PROVER_TIMEOUT", default_value = "120")]
+        pub prover_timeout: u64,
     }
 
     impl AppConfig {
@@ -80,7 +80,7 @@ mod app_env {
             let prover = {
                 let prover_url = app_config.prover_url()?;
                 let prover: remote::Prover =
-                    Prover::new(node_url.clone(), prover_url, app_config.prover_timeout_secs)?;
+                    Prover::new(node_url.clone(), prover_url, app_config.prover_timeout)?;
                 anyhow::Ok(prover)
             }?;
             Ok(Self {

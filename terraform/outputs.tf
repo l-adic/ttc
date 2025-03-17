@@ -31,6 +31,11 @@ output "prover_server_url" {
   value       = google_cloud_run_v2_service.prover_server.uri
 }
 
+output "prover_server_gpu_url" {
+  description = "URL of the GPU-enabled Cloud Run service"
+  value       = var.enable_gpu_prover ? google_cloud_run_v2_service.prover_server_gpu[0].uri : "GPU prover not enabled"
+}
+
 # Connection Instructions
 output "connection_instructions" {
   description = "Instructions for connecting to the services"
@@ -44,16 +49,19 @@ To connect to the services:
 2. Open three terminal windows and run the following commands:
 
    Terminal 1 (Anvil Node):
-   gcloud compute start-iap-tunnel ${google_compute_instance_group_manager.ethereum_node.base_instance_name}-xxxx 8545 --local-host-port=localhost:8545 --zone=${var.gcp_zone} --network=${google_compute_network.vpc.name}
+   gcloud compute start-iap-tunnel ${google_compute_instance_group_manager.ethereum_node.base_instance_name}-xxxx 8545 --local-host-port=localhost:8545 --zone=${var.gcp_zone}
    (Note: Get the full instance name by running the command in step 4)
 
    Terminal 2 (Monitor Server):
-   gcloud compute start-iap-tunnel ${google_compute_instance_group_manager.monitor_server.base_instance_name}-xxxx 3030 --local-host-port=localhost:3030 --zone=${var.gcp_zone} --network=${google_compute_network.vpc.name}
+   gcloud compute start-iap-tunnel ${google_compute_instance_group_manager.monitor_server.base_instance_name}-xxxx 3030 --local-host-port=localhost:3030 --zone=${var.gcp_zone}
    (Note: Get the full instance name by running the command in step 4)
 
    Terminal 3 (Prover Server):
    # Option 1: Use proxy for local development
    gcloud run services proxy prover-server --region=${var.gcp_region} --port=3000
+   
+   Terminal 4 (GPU Prover Server, if enabled):
+   gcloud run services proxy prover-server-gpu --region=${var.gcp_region} --port=3000
 
    # Option 2: Access the service directly (for testing)
    curl ${google_cloud_run_v2_service.prover_server.uri}

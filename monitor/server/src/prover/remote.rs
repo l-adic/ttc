@@ -34,9 +34,9 @@ pub struct Prover {
 }
 
 impl Prover {
-    pub fn new(node_url: Url, prover_url: Url, prover_timeout_secs: u64) -> anyhow::Result<Self> {
+    pub fn new(node_url: Url, prover_url: Url, prover_timeout: u64) -> anyhow::Result<Self> {
         let client = HttpClientBuilder::default()
-            .request_timeout(std::time::Duration::from_secs(prover_timeout_secs))
+            .request_timeout(std::time::Duration::from_secs(prover_timeout))
             .build(prover_url)?;
         Ok(Self { node_url, client })
     }

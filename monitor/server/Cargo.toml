@@ -29,7 +29,7 @@ monitor-api.workspace = true
 [features]
 default = []
 local_prover = ["dep:risc0-ethereum-contracts", "dep:risc0-zkvm", "dep:methods"]
-cuda = ["risc0-zkvm/cuda"]
+cuda = ["local_prover", "risc0-zkvm/cuda"]
 
 [[bin]]
 name = "create-db"

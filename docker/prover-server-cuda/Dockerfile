@@ -1,5 +1,5 @@
 # Use NVIDIA CUDA base image with x86 architecture
-FROM nvidia/cuda:12.8.0-devel-ubuntu22.04 AS builder
+FROM nvidia/cuda:12.8.0-devel-ubuntu24.04 AS builder
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -44,7 +44,7 @@ COPY . .
 # Build the prover-server binary with CUDA features enabled
 RUN RUST_BACKTRACE=1 make build-prover-cuda
 
-FROM nvidia/cuda:12.8.0-devel-ubuntu22.04 AS cuda-prover-server
+FROM nvidia/cuda:12.8.0-runtime-ubuntu24.04 AS cuda-prover-server
 
 RUN apt-get update && apt-get install -y \
     libssl3 \

@@ -40,7 +40,7 @@ build-prover: build-contracts
 
 build-prover-cuda: build-contracts ## Build the RISC Zero prover with CUDA support
     RUSTFLAGS="-C target-cpu=native" \
-	cargo build -p monitor-server --bin prover-server --release -F local_prover -F cuda
+	cargo build -p monitor-server --bin prover-server --release -F cuda
 
 
 build-monitor: build-contracts
@@ -71,7 +71,7 @@ clean: ## Clean build artifacts
 
 # Linting and formatting
 lint: ## Run code linters
-	RISC0_SKIP_BUILD=1 cargo clippy --workspace --all-features -- -D warnings
+	RISC0_SKIP_BUILD=1 cargo clippy --workspace -F local_prover -- -D warnings
 
 fmt: ## Format code
 	cargo fmt --all
@@ -138,7 +138,7 @@ run-prover-server: build-contracts ## Run the prover server
 	NODE_HOST=$(NODE_HOST) \
 	NODE_PORT=$(NODE_PORT) \
 	JSON_RPC_PORT=$(PROVER_PORT) \
-    RISC0_DEV_MODE=${RISC0_DEV_MODE} \
+	RISC0_DEV_MODE=${RISC0_DEV_MODE} \
 	cargo run -p monitor-server --bin prover-server -F local_prover --release
 
 run-monitor-server: build-contracts ## Run the monitor server
