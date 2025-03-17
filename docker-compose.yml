@@ -43,8 +43,8 @@ services:
     mem_limit: 8g
     build:
       context: .
-      dockerfile: docker/servers/Dockerfile
-      target: prover-server
+      dockerfile: docker/prover-server-cuda/Dockerfile
+      #target: prover-server
     ports:
       - "${JSON_RPC_PORT:-3000}:3000"
     depends_on:
@@ -55,6 +55,7 @@ services:
     environment:
       - RUST_LOG=${RUST_LOG:-info}
       - RISC0_DEV_MODE=${RISC0_DEV_MODE:-true}
+      - RISC0_PROVER=${RISC0_PROVER:-local}
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=postgres
@@ -63,6 +64,7 @@ services:
       - NODE_HOST=ethereum-node
       - NODE_PORT=${ETH_PORT:-8545}
       - JSON_RPC_PORT=3000
+    runtime: nvidia
     command: >
       sh -c "/app/target/release/prover-server"
     networks:
