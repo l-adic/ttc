@@ -72,6 +72,8 @@ resource "google_compute_instance" "prover_server_gpu" {
   metadata = {
     ssh-keys = "${var.ssh_user}:${file(var.ssh_pub_key_path)}"
 
+    startup-script = "yes y | /opt/nvidia/gcp-ngc-login.sh true none false /var/log/nvidia 2> /dev/null"
+
     user-data = <<EOF
 #cloud-config
 write_files:
@@ -103,28 +105,29 @@ write_files:
     Environment="RUST_BACKTRACE=1"
     Environment="RISC0_WORK_DIR=/tmp/risc0-work-dir"
     ExecStartPre=/usr/bin/docker pull ${var.prover_cuda_image_repository}:${var.docker_cuda_image_tag}
-    ExecStart=/usr/bin/docker run --rm --name prover-server \
+    ExecStart=/bin/bash -c '\
+      /usr/bin/docker run --rm --rm --name prover-server \
         --gpus all \
         -p 3000:3000 \
-        -e RUST_LOG=\$${RUST_LOG} \
-        -e RISC0_DEV_MODE=\$${RISC0_DEV_MODE} \
-        -e DB_HOST=\$${DB_HOST} \
-        -e DB_PORT=\$${DB_PORT} \
-        -e DB_USER=\$${DB_USER} \
-        -e DB_PASSWORD=\$${DB_PASSWORD} \
-        -e DB_NAME=\$${DB_NAME} \
-        -e NODE_HOST=\$${NODE_HOST} \
-        -e NODE_PORT=\$${NODE_PORT} \
-        -e JSON_RPC_PORT=\$${JSON_RPC_PORT} \
+        -e RUST_LOG=$${RUST_LOG} \
+        -e RISC0_DEV_MODE=$${RISC0_DEV_MODE} \
+        -e DB_HOST=$${DB_HOST} \
+        -e DB_PORT=$${DB_PORT} \
+        -e DB_USER=$${DB_USER} \
+        -e DB_PASSWORD=$${DB_PASSWORD} \
+        -e DB_NAME=$${DB_NAME} \
+        -e NODE_HOST=$${NODE_HOST} \
+        -e NODE_PORT=$${NODE_PORT} \
+        -e JSON_RPC_PORT=$${JSON_RPC_PORT} \
         -e NVIDIA_VISIBLE_DEVICES=all \
         -e NVIDIA_DRIVER_CAPABILITIES=all \
-        -e RISC0_PROVER=\$${RISC0_PROVER} \
-        -e RUST_BACKTRACE=\$${RUST_BACKTRACE} \
-        -e RISC0_WORK_DIR=\$${RISC0_WORK_DIR} \
+        -e RISC0_PROVER=$${RISC0_PROVER} \
+        -e RUST_BACKTRACE=$${RUST_BACKTRACE} \
+        -e RISC0_WORK_DIR=$${RISC0_WORK_DIR} \
         -v /var/run/docker.sock:/var/run/docker.sock \
         -v /tmp/risc0-work-dir:/tmp/risc0-work-dir \
         --privileged \
-        ${var.prover_cuda_image_repository}:${var.docker_cuda_image_tag}
+        ${var.prover_cuda_image_repository}:${var.docker_cuda_image_tag}'
     ExecStop=/usr/bin/docker stop prover-server
     Restart=always
     RestartSec=5
