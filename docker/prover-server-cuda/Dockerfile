@@ -38,10 +38,8 @@ ENV PATH="/root/.foundry/bin:${PATH}"
 # Set the working directory
 WORKDIR /app
 
-# Copy the entire repository
 COPY . .
 
-# Build the prover-server binary with CUDA features enabled
 RUN RUST_BACKTRACE=1 make build-prover-cuda
 
 FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04 AS cuda-prover-server

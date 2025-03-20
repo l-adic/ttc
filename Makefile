@@ -1,3 +1,6 @@
+# Build configuration
+CARGO_BUILD_OPTIONS ?= --release
+
 # Default environment variables
 NODE_HOST ?= localhost
 NODE_PORT ?= 8545
@@ -30,30 +33,29 @@ help:
 
 # Build commands
 build-methods: ## Build the RISC Zero guest program
-	cargo build -p methods --release
+	cargo build -p methods $(CARGO_BUILD_OPTIONS)
 
 build-contracts: build-methods ## Build smart contracts (requires guest)
 	cd contract && forge build
 
 build-prover: build-contracts
-	cargo build -p monitor-server --bin prover-server --release -F local_prover
+	cargo build -p monitor-server --bin prover-server $(CARGO_BUILD_OPTIONS) -F local_prover
 
 build-prover-cuda: build-contracts ## Build the RISC Zero prover with CUDA support
-	cargo build -p monitor-server --bin prover-server --release -F cuda
-
+	cargo build -p monitor-server --bin prover-server $(CARGO_BUILD_OPTIONS) -F cuda
 
 build-monitor: build-contracts
-	cargo build -p monitor-server --bin monitor-server --release
+	cargo build -p monitor-server --bin monitor-server $(CARGO_BUILD_OPTIONS)
 
 build-host: build-contracts ## Build the RISC Zero host program
-	cargo build -p host --release
+	cargo build -p host $(CARGO_BUILD_OPTIONS)
 
-build: build-contracts ## Build all components (guests, contracts, host)
-	cargo build --release --workspace --bin monitor-server -F local_prover --bin prover-server
+build-servers: build-contracts ## Build only the server binaries
+	cargo build $(CARGO_BUILD_OPTIONS) -p monitor-server --bin monitor-server --bin prover-server -F local_prover
 
 # Test commands
 test: build-contracts ## Run all test suites (excluding integration tests)
-	cargo test --release --workspace
+	cargo test $(CARGO_BUILD_OPTIONS) --workspace
 
 test-integration: ## Run integration tests that require external services
 	DB_HOST=$(DB_HOST) \
@@ -62,7 +64,7 @@ test-integration: ## Run integration tests that require external services
 	DB_PASSWORD=$(DB_PASSWORD) \
 	DB_NAME=postgres \
 	RUST_LOG=debug \
-	cargo test --release --workspace -- --ignored
+	cargo test $(CARGO_BUILD_OPTIONS) --workspace -- --ignored
 
 # Cleaning
 clean: ## Clean build artifacts
@@ -92,7 +94,7 @@ run-node-tests-mock: build-contracts ## Run node tests with mock verifier
 	MONITOR_PORT=$(MONITOR_PORT) \
 	MAX_ACTORS=20 \
 	PROVER_TIMEOUT=60 \
-	cargo run --bin host --release -- \
+	cargo run --bin host $(CARGO_BUILD_OPTIONS) -- \
 		--chain-id $(CHAIN_ID) \
 		--owner-key $(OWNER_KEY) \
 		--mock-verifier
@@ -105,7 +107,7 @@ run-node-tests: build-contracts ## Run node tests with real verifier
 	MONITOR_PORT=$(MONITOR_PORT) \
 	MAX_ACTORS=3 \
 	PROVER_TIMEOUT=3000 \
-	cargo run --bin host --release -- \
+	cargo run --bin host $(CARGO_BUILD_OPTIONS) -- \
 		--chain-id $(CHAIN_ID) \
 		--owner-key $(OWNER_KEY)
 
@@ -117,7 +119,7 @@ create-db: ## Create the database
 	DB_NAME=postgres \
 	DB_CREATE_NAME=ttc \
 	RUST_LOG=debug \
-	cargo run --release -p monitor-server --bin create-db
+	cargo run $(CARGO_BUILD_OPTIONS) -p monitor-server --bin create-db
 
 create-schema: ## Create the database schema (Must setup the database first via create-db)
 	DB_HOST=$(DB_HOST) \
@@ -126,7 +128,7 @@ create-schema: ## Create the database schema (Must setup the database first via 
 	DB_PASSWORD=$(DB_PASSWORD) \
 	DB_NAME=$(DB_NAME) \
 	RUST_LOG=debug \
-	cargo run --release -p monitor-server --bin create-schema
+	cargo run $(CARGO_BUILD_OPTIONS) -p monitor-server --bin create-schema
 
 run-prover-server: build-contracts ## Run the prover server
 	DB_HOST=$(DB_HOST) \
@@ -138,7 +140,7 @@ run-prover-server: build-contracts ## Run the prover server
 	NODE_PORT=$(NODE_PORT) \
 	JSON_RPC_PORT=$(PROVER_PORT) \
 	RISC0_DEV_MODE=${RISC0_DEV_MODE} \
-	cargo run -p monitor-server --bin prover-server -F local_prover --release
+	cargo run -p monitor-server --bin prover-server -F local_prover $(CARGO_BUILD_OPTIONS)
 
 run-monitor-server: build-contracts ## Run the monitor server
 	DB_HOST=$(DB_HOST) \
@@ -152,4 +154,4 @@ run-monitor-server: build-contracts ## Run the monitor server
 	PROVER_HOST=$(PROVER_HOST) \
 	PROVER_PORT=$(PROVER_PORT) \
 	JSON_RPC_PORT=$(MONITOR_PORT) \
-	cargo run -p monitor-server --bin monitor-server --release
+	cargo run -p monitor-server --bin monitor-server $(CARGO_BUILD_OPTIONS)

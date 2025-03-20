@@ -30,11 +30,9 @@ ENV PATH="/root/.foundry/bin:${PATH}"
 # Set the working directory
 WORKDIR /app
 
-RUN which r0vm > /app/r0vm_path
-
-# Copy the entire repository and build both binaries
 COPY . .
-RUN make build
+
+RUN make build-servers
 
 # Create monitor-server image
 FROM ubuntu:24.04 AS monitor-server
