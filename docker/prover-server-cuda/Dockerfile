@@ -1,5 +1,5 @@
 # Use NVIDIA CUDA base image with x86 architecture
-FROM nvidia/cuda:12.8.0-devel-ubuntu24.04 AS builder
+FROM nvidia/cuda:12.4.0-devel-ubuntu22.04 AS builder
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
@@ -44,26 +44,24 @@ COPY . .
 # Build the prover-server binary with CUDA features enabled
 RUN RUST_BACKTRACE=1 make build-prover-cuda
 
-FROM nvidia/cuda:12.8.0-runtime-ubuntu24.04 AS cuda-prover-server
+FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04 AS cuda-prover-server
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && \
+    apt-get -qy full-upgrade && \
+    apt-get install -qy \
     libssl3 \
     ca-certificates \
     libc6 \
     curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.85.0
+    && rm -rf /var/lib/apt/lists/*
 
-ENV PATH="/root/.cargo/bin:${PATH}"
+# The Groth16 Receipt generation is run in docker
+RUN curl -sSL https://get.docker.com/ | sh
 
-# Install RISC0 toolchain
-RUN curl -L https://risczero.com/install | bash
-ENV PATH="/root/.risc0/bin:${PATH}"
-RUN /root/.risc0/bin/rzup install
-RUN /root/.risc0/bin/rzup install cargo-risczero 1.2.4
-RUN /root/.risc0/bin/rzup install r0vm 1.2.4
-
+# Create the risc0 work directory (this is a shared volume for the groth16 work)
+RUN mkdir -p /tmp/risc0-work-dir
+    
 COPY --from=builder /app/target/release/prover-server /app/target/release/
 
-# Set the binary as the default command
-CMD ["/app/target/release/prover-server"]
+# Set the binary as the entrypoint
+ENTRYPOINT ["/app/target/release/prover-server"]

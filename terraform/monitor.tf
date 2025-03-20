@@ -8,6 +8,10 @@ resource "google_service_account" "monitor_server" {
 resource "google_compute_instance_template" "monitor_server" {
   name_prefix  = "monitor-server-template-"
   machine_type = "e2-standard-2"  # 2 vCPU, 8GB RAM
+  depends_on = [
+    google_compute_forwarding_rule.ethereum_node,
+    google_compute_instance.prover_server_gpu[0]
+  ]
   
   disk {
     source_image = "cos-cloud/cos-stable"
@@ -47,8 +51,8 @@ write_files:
     Environment="DB_NAME=${var.database_name}"
     Environment="NODE_HOST=${google_compute_forwarding_rule.ethereum_node.ip_address}"
     Environment="NODE_PORT=8545"
-    Environment="PROVER_PROTOCOL=https"
-    Environment="PROVER_HOST=${trimprefix(google_cloud_run_v2_service.prover_server.uri, "https://")}"
+    Environment="PROVER_PROTOCOL=http"
+    Environment="PROVER_HOST=${google_compute_instance.prover_server_gpu[0].network_interface[0].network_ip}"
     Environment="PROVER_TIMEOUT_SECS=${var.monitor_prover_timeout_secs}"
     ExecStartPre=/usr/bin/timeout 300 /usr/bin/docker pull ${var.monitor_image_repository}:${var.docker_image_tag}
     ExecStart=/bin/bash -c '\

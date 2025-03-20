@@ -1,7 +1,7 @@
 use super::db::Database;
 use crate::{
     db::schema::{Job, JobStatus},
-    prover::{remote::Prover, types::ProverT},
+    prover::{remote::Prover, types::AsyncProverT},
     ttc_contract::TopTradingCycle::{self, PhaseChanged},
 };
 use chrono::{TimeZone, Utc};
@@ -120,7 +120,7 @@ impl EventsManager {
                                 };
                                 db.create_job(&job).await.map_err(anyhow::Error::new)?;
                                 debug!(parent: &monitor_span, "Created job for TTC contract. Sending prove request, this could take a while...");
-                                prover.prove(*ttc.address()).await?;
+                                prover.prove_async(*ttc.address()).await?;
                                 debug!(parent: &monitor_span, "Successfully processed phase 2, stopping monitor for TTC contract");
                                 break; // Stop the stream after processing phase 2
                             }

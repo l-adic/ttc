@@ -151,8 +151,14 @@ impl ProverApiServer for ProverApiImpl {
         self.assert_in_trade_phase(address).await?;
         let api = self.clone();
         tokio::spawn(async move {
-            api.prove_impl(address).await?;
-            anyhow::Ok(())
+            let res = api.prove_impl(address).await;
+            match res {
+                Ok(_) => anyhow::Ok(()),
+                Err(err) => {
+                    error!("Prover errored with message {}", err);
+                    Err(err)
+                }
+            }
         });
         Ok(())
     }

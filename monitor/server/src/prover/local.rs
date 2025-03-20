@@ -75,8 +75,7 @@ impl ProverT for Prover {
                 &ProverOpts::groth16(),
             )
         })
-        .await?
-        .context("failed to create proof")?;
+        .await??;
 
         let receipt = prove_info.receipt;
         let seal = encode_seal(&receipt).context("invalid receipt")?;

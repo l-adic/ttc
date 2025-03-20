@@ -13,6 +13,6 @@ pub trait ProverT {
 }
 
 #[allow(async_fn_in_trait)]
-pub trait AsyncProverT {
+pub trait AsyncProverT: ProverT {
     async fn prove_async(&self, address: Address) -> anyhow::Result<()>;
 }

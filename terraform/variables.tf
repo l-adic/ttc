@@ -75,7 +75,7 @@ variable "prover_image_repository" {
 variable "prover_cuda_image_repository" {
   description = "Docker image repository for GPU-enabled Prover server"
   type        = string
-  default     = "elladic/ttc-prover-server-cuda"
+  default     = "elladic/prover-server-cuda"
 }
 
 variable "enable_gpu_prover" {
@@ -86,25 +86,9 @@ variable "enable_gpu_prover" {
 
 # GPU Configuration
 variable "gpu_count" {
-  description = "Number of GPUs to attach to the GPU-enabled prover (1-2 for Cloud Run)"
+  description = "Number of GPUs to attach to the GPU-enabled prover"
   type        = number
   default     = 1
-  validation {
-    condition     = var.gpu_count >= 1 && var.gpu_count <= 2
-    error_message = "GPU count must be between 1 and 2 for Cloud Run"
-  }
-}
-
-variable "prover_cpu_count" {
-  description = "Number of CPUs for Prover server"
-  type        = number
-  default     = 8  # Maximum allowed in Cloud Run
-}
-
-variable "prover_memory_gb" {
-  description = "Memory in GB for Prover server"
-  type        = number
-  default     = 32
 }
 
 variable "prover_rust_log_level" {
@@ -191,4 +175,15 @@ variable "iap_member_list" {
   description = "List of members to grant IAP access (e.g., user:user@example.com)"
   type        = list(string)
   default     = []
+}
+
+# SSH Configuration for GPU Prover
+variable "ssh_user" {
+  description = "SSH username for GPU prover instance"
+  type        = string
+}
+
+variable "ssh_pub_key_path" {
+  description = "Path to SSH public key file for GPU prover instance"
+  type        = string
 }
