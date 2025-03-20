@@ -71,96 +71,71 @@ resource "google_compute_instance" "prover_server_gpu" {
 
   metadata = {
     ssh-keys = "${var.ssh_user}:${file(var.ssh_pub_key_path)}"
+
+    user-data = <<EOF
+#cloud-config
+write_files:
+- path: /etc/systemd/system/prover.service
+  permissions: 0644
+  owner: root
+  content: |
+    [Unit]
+    Description=TTC Prover Server
+    After=docker.service
+    Requires=docker.service
+
+    [Service]
+    # Increase timeouts
+    TimeoutStartSec=600
+    TimeoutStopSec=6`:windows00
     
-    startup-script = <<EOF
-#!/bin/bash
+    Environment="RUST_LOG=${var.prover_rust_log_level}"
+    Environment="RISC0_DEV_MODE=${var.prover_risc0_dev_mode}"
+    Environment="DB_HOST=${google_sql_database_instance.ttc.private_ip_address}"
+    Environment="DB_PORT=5432"
+    Environment="DB_USER=${var.database_username}"
+    Environment="DB_PASSWORD=${var.database_password}"
+    Environment="DB_NAME=${var.database_name}"
+    Environment="NODE_HOST=${google_compute_forwarding_rule.ethereum_node.ip_address}"
+    Environment="NODE_PORT=8545"
+    Environment="JSON_RPC_PORT=3000"
+    Environment="RISC0_PROVER=local"
+    Environment="RUST_BACKTRACE=1"
+    Environment="RISC0_WORK_DIR=/tmp/risc0-work-dir"
+    ExecStartPre=/usr/bin/docker pull ${var.prover_cuda_image_repository}:${var.docker_cuda_image_tag}
+    ExecStart=/usr/bin/docker run --rm --name prover-server \
+        --gpus all \
+        -p 3000:3000 \
+        -e RUST_LOG=\$${RUST_LOG} \
+        -e RISC0_DEV_MODE=\$${RISC0_DEV_MODE} \
+        -e DB_HOST=\$${DB_HOST} \
+        -e DB_PORT=\$${DB_PORT} \
+        -e DB_USER=\$${DB_USER} \
+        -e DB_PASSWORD=\$${DB_PASSWORD} \
+        -e DB_NAME=\$${DB_NAME} \
+        -e NODE_HOST=\$${NODE_HOST} \
+        -e NODE_PORT=\$${NODE_PORT} \
+        -e JSON_RPC_PORT=\$${JSON_RPC_PORT} \
+        -e NVIDIA_VISIBLE_DEVICES=all \
+        -e NVIDIA_DRIVER_CAPABILITIES=all \
+        -e RISC0_PROVER=\$${RISC0_PROVER} \
+        -e RUST_BACKTRACE=\$${RUST_BACKTRACE} \
+        -e RISC0_WORK_DIR=\$${RISC0_WORK_DIR} \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        -v /tmp/risc0-work-dir:/tmp/risc0-work-dir \
+        --privileged \
+        ${var.prover_cuda_image_repository}:${var.docker_cuda_image_tag}
+    ExecStop=/usr/bin/docker stop prover-server
+    Restart=always
+    RestartSec=5
 
-# Enable logging
-exec 1> >(logger -s -t $(basename $0)) 2>&1
+    [Install]
+    WantedBy=multi-user.target
 
-echo "Starting prover server setup..."
-
-# Install NVIDIA drivers
-echo "Installing NVIDIA drivers..."
-apt-get update
-DEBIAN_FRONTEND=noninteractive apt-get install -y nvidia-driver-535
-systemctl enable nvidia-persistenced
-systemctl start nvidia-persistenced
-
-# Wait for NVIDIA drivers to be loaded
-echo "Waiting for NVIDIA drivers to initialize..."
-sleep 10
-
-# Verify GPU is available
-echo "Checking GPU status..."
-nvidia-smi || (echo "GPU not found" && exit 1)
-
-# Verify Docker NVIDIA runtime
-echo "Checking Docker NVIDIA runtime..."
-docker info | grep -i nvidia || (echo "NVIDIA runtime not found" && exit 1)
-
-echo "Pulling latest image..."
-docker pull ${var.prover_cuda_image_repository}:${var.docker_cuda_image_tag}
-
-# Create systemd service file
-cat > /etc/systemd/system/prover-server.service <<EOL
-[Unit]
-Description=GPU Prover Server
-After=docker.service
-Requires=docker.service
-
-[Service]
-Environment="RUST_LOG=${var.prover_rust_log_level}"
-Environment="RISC0_DEV_MODE=${var.prover_risc0_dev_mode}"
-Environment="DB_HOST=${google_sql_database_instance.ttc.private_ip_address}"
-Environment="DB_PORT=5432"
-Environment="DB_USER=${var.database_username}"
-Environment="DB_PASSWORD=${var.database_password}"
-Environment="DB_NAME=${var.database_name}"
-Environment="NODE_HOST=${google_compute_forwarding_rule.ethereum_node.ip_address}"
-Environment="NODE_PORT=8545"
-Environment="JSON_RPC_PORT=3000"
-Environment="RISC0_PROVER=local"
-Environment="RUST_BACKTRACE=1"
-Environment="RISC0_WORK_DIR=/tmp/risc0-work-dir"
-ExecStartPre=/usr/bin/docker pull ${var.prover_cuda_image_repository}:${var.docker_cuda_image_tag}
-ExecStart=/usr/bin/docker run --rm --name prover-server \
-    --gpus all \
-    -p 3000:3000 \
-    -e RUST_LOG=\$${RUST_LOG} \
-    -e RISC0_DEV_MODE=\$${RISC0_DEV_MODE} \
-    -e DB_HOST=\$${DB_HOST} \
-    -e DB_PORT=\$${DB_PORT} \
-    -e DB_USER=\$${DB_USER} \
-    -e DB_PASSWORD=\$${DB_PASSWORD} \
-    -e DB_NAME=\$${DB_NAME} \
-    -e NODE_HOST=\$${NODE_HOST} \
-    -e NODE_PORT=\$${NODE_PORT} \
-    -e JSON_RPC_PORT=\$${JSON_RPC_PORT} \
-    -e NVIDIA_VISIBLE_DEVICES=all \
-    -e NVIDIA_DRIVER_CAPABILITIES=all \
-    -e RISC0_PROVER=\$${RISC0_PROVER} \
-    -e RUST_BACKTRACE=\$${RUST_BACKTRACE} \
-    -e RISC0_WORK_DIR=\$${RISC0_WORK_DIR} \
-    -v /var/run/docker.sock:/var/run/docker.sock \
-    -v /tmp/risc0-work-dir:/tmp/risc0-work-dir \
-    --privileged \
-    ${var.prover_cuda_image_repository}:${var.docker_cuda_image_tag}
-ExecStop=/usr/bin/docker stop prover-server
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-EOL
-
-# Enable and start the service
-systemctl daemon-reload
-systemctl enable prover-server.service
-systemctl start prover-server.service
-
-# Monitor the service status
-systemctl status prover-server.service
+runcmd:
+  - systemctl daemon-reload
+  - systemctl enable prover.service
+  - systemctl start prover.service
 EOF
   }
 
