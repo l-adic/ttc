@@ -105,6 +105,7 @@ jobs:
         make fetch-image-id-contract > contract/src/ImageID.sol
         make compile-contracts
         make create-schema
+        make deploy-mock
         make run-node-tests-mock
     
     # Run full tests for nightly builds
@@ -115,6 +116,7 @@ jobs:
         make fetch-image-id-contract > contract/src/ImageID.sol
         make compile-contracts
         make create-schema
+        make deploy
         make run-node-tests
     
     # Get short git SHA for tagging

@@ -45,13 +45,10 @@ write_files:
     
     Environment="RUST_LOG=${var.monitor_rust_log_level}"
     Environment="DB_HOST=${google_sql_database_instance.ttc.private_ip_address}"
-    Environment="DB_PORT=5432"
     Environment="DB_USER=${var.database_username}"
     Environment="DB_PASSWORD=${var.database_password}"
     Environment="DB_NAME=${var.database_name}"
     Environment="NODE_HOST=${google_compute_forwarding_rule.ethereum_node.ip_address}"
-    Environment="NODE_PORT=8545"
-    Environment="PROVER_PROTOCOL=http"
     Environment="PROVER_HOST=${google_compute_instance.prover_server_gpu[0].network_interface[0].network_ip}"
     Environment="PROVER_TIMEOUT_SECS=${var.monitor_prover_timeout_secs}"
     ExecStartPre=/usr/bin/timeout 300 /usr/bin/docker pull ${var.monitor_image_repository}:${var.docker_image_tag}
@@ -61,14 +58,15 @@ write_files:
       -e JSON_RPC_PORT=3030 \
       -e RUST_LOG=$${RUST_LOG} \
       -e DB_HOST=$${DB_HOST} \
-      -e DB_PORT=$${DB_PORT} \
+      -e DB_PORT=5432 \
       -e DB_USER=$${DB_USER} \
       -e DB_PASSWORD=$${DB_PASSWORD} \
       -e DB_NAME=$${DB_NAME} \
       -e NODE_HOST=$${NODE_HOST} \
-      -e NODE_PORT=$${NODE_PORT} \
-      -e PROVER_PROTOCOL=$${PROVER_PROTOCOL} \
+      -e NODE_PORT=8545 \
+      -e PROVER_PROTOCOL=http \
       -e PROVER_HOST=$${PROVER_HOST} \
+      -e PROVER_PORT=3000 \
       -e PROVER_TIMEOUT_SECS=$${PROVER_TIMEOUT_SECS} \
       ${var.monitor_image_repository}:${var.docker_image_tag} \
       /app/target/release/monitor-server'
