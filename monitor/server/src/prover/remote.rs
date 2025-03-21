@@ -40,6 +40,12 @@ impl Prover {
             .build(prover_url)?;
         Ok(Self { node_url, client })
     }
+
+    pub async fn get_image_id_contract(&self) -> anyhow::Result<String> {
+        ProverApiClient::get_image_id_contract(&self.client)
+            .await
+            .map_err(|e| anyhow::anyhow!("Prover get_image_id_contract request failed: {:#}", e))
+    }
 }
 
 impl ProverT for Prover {

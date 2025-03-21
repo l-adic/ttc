@@ -94,16 +94,10 @@ write_files:
     Environment="RUST_LOG=${var.prover_rust_log_level}"
     Environment="RISC0_DEV_MODE=${var.prover_risc0_dev_mode}"
     Environment="DB_HOST=${google_sql_database_instance.ttc.private_ip_address}"
-    Environment="DB_PORT=5432"
     Environment="DB_USER=${var.database_username}"
     Environment="DB_PASSWORD=${var.database_password}"
     Environment="DB_NAME=${var.database_name}"
     Environment="NODE_HOST=${google_compute_forwarding_rule.ethereum_node.ip_address}"
-    Environment="NODE_PORT=8545"
-    Environment="JSON_RPC_PORT=3000"
-    Environment="RISC0_PROVER=local"
-    Environment="RUST_BACKTRACE=1"
-    Environment="RISC0_WORK_DIR=/tmp/risc0-work-dir"
     ExecStartPre=/usr/bin/docker pull ${var.prover_cuda_image_repository}:${var.docker_cuda_image_tag}
     ExecStart=/bin/bash -c '\
       /usr/bin/docker run --rm --rm --name prover-server \
@@ -112,18 +106,18 @@ write_files:
         -e RUST_LOG=$${RUST_LOG} \
         -e RISC0_DEV_MODE=$${RISC0_DEV_MODE} \
         -e DB_HOST=$${DB_HOST} \
-        -e DB_PORT=$${DB_PORT} \
+        -e DB_PORT=5432 \
         -e DB_USER=$${DB_USER} \
         -e DB_PASSWORD=$${DB_PASSWORD} \
         -e DB_NAME=$${DB_NAME} \
         -e NODE_HOST=$${NODE_HOST} \
-        -e NODE_PORT=$${NODE_PORT} \
-        -e JSON_RPC_PORT=$${JSON_RPC_PORT} \
+        -e NODE_PORT=8545 \
+        -e JSON_RPC_PORT=3000 \
         -e NVIDIA_VISIBLE_DEVICES=all \
         -e NVIDIA_DRIVER_CAPABILITIES=all \
-        -e RISC0_PROVER=$${RISC0_PROVER} \
-        -e RUST_BACKTRACE=$${RUST_BACKTRACE} \
-        -e RISC0_WORK_DIR=$${RISC0_WORK_DIR} \
+        -e RISC0_PROVER=local \
+        -e RUST_BACKTRACE=1 \
+        -e RISC0_WORK_DIR=/tmp/risc0-work-dir \
         -v /var/run/docker.sock:/var/run/docker.sock \
         -v /tmp/risc0-work-dir:/tmp/risc0-work-dir \
         --privileged \

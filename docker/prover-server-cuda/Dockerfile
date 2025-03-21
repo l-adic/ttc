@@ -59,6 +59,7 @@ RUN curl -sSL https://get.docker.com/ | sh
 # Create the risc0 work directory (this is a shared volume for the groth16 work)
 RUN mkdir -p /tmp/risc0-work-dir
     
+COPY --from=builder /app/contract/src/ImageID.sol /app/contract/src/ImageID.sol
 COPY --from=builder /app/target/release/prover-server /app/target/release/
 
 # Set the binary as the entrypoint
