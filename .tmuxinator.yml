@@ -6,6 +6,8 @@ on_project_start:
   - sleep 5
   - make create-db
   - make create-schema
+  - make build-prover
+  - make build-monitor
 
 windows:
   - eth_pg_logs:

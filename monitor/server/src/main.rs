@@ -49,8 +49,8 @@ mod app_env {
         #[arg(long, env = "PROVER_PORT")]
         pub prover_port: Option<String>,
 
-        #[arg(long, env = "PROVER_TIMEOUT_SECS", default_value = "300")]
-        pub prover_timeout_secs: u64,
+        #[arg(long, env = "PROVER_TIMEOUT", default_value = "120")]
+        pub prover_timeout: u64,
     }
 
     impl AppConfig {
@@ -66,6 +66,7 @@ mod app_env {
     pub struct AppEnv {
         pub db: Database,
         pub node_url: Url,
+        pub prover: remote::Prover,
         pub events_manager: EventsManager,
     }
 
@@ -80,12 +81,13 @@ mod app_env {
             let prover = {
                 let prover_url = app_config.prover_url()?;
                 let prover: remote::Prover =
-                    Prover::new(node_url.clone(), prover_url, app_config.prover_timeout_secs)?;
+                    Prover::new(node_url.clone(), prover_url, app_config.prover_timeout)?;
                 anyhow::Ok(prover)
             }?;
             Ok(Self {
                 db: db.clone(),
                 node_url: node_url.clone(),
+                prover: prover.clone(),
                 events_manager: EventsManager::new(node_url, prover, db),
             })
         }
@@ -216,6 +218,13 @@ impl MonitorApiServer for ProverApiImpl {
                 error!("Failed to watch contract: {:#}", err);
                 Err(ErrorObject::owned(-32001, err.to_string(), None::<()>))
             }
+        }
+    }
+
+    async fn get_image_id_contract(&self) -> Result<String, ErrorObjectOwned> {
+        match self.app_env.prover.get_image_id_contract().await {
+            Ok(contract) => Ok(contract),
+            Err(err) => Err(ErrorObject::owned(-32001, err.to_string(), None::<()>)),
         }
     }
 

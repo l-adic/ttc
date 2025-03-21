@@ -2,10 +2,10 @@
 resolver = "3"
 members = [
     "ttc", 
-    "host", 
     "methods",
     "monitor/api",
     "monitor/server",
+    "host"
   ]
 
 [workspace.package]

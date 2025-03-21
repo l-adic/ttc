@@ -10,6 +10,9 @@ pub trait ProverApi {
     #[method(name = "proveAsync")]
     async fn prove_async(&self, address: Address) -> Result<(), ErrorObjectOwned>;
 
+    #[method(name = "getImageIDContract")]
+    async fn get_image_id_contract(&self) -> Result<String, ErrorObjectOwned>;
+
     #[method(name = "healthCheck")]
     async fn health_check(&self) -> Result<(), ErrorObjectOwned>;
 }

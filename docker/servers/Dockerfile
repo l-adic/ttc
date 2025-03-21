@@ -30,11 +30,9 @@ ENV PATH="/root/.foundry/bin:${PATH}"
 # Set the working directory
 WORKDIR /app
 
-RUN which r0vm > /app/r0vm_path
-
-# Copy the entire repository and build both binaries
 COPY . .
-RUN make build
+
+RUN make build-servers
 
 # Create monitor-server image
 FROM ubuntu:24.04 AS monitor-server
@@ -65,6 +63,7 @@ RUN /root/.risc0/bin/rzup install
 RUN /root/.risc0/bin/rzup install cargo-risczero 1.2.4
 RUN /root/.risc0/bin/rzup install r0vm 1.2.4
 
+COPY --from=builder /app/contract/src/ImageID.sol /app/contract/src/ImageID.sol
 COPY --from=builder /app/target/release/prover-server /app/target/release/
 
 CMD ["/app/target/release/prover-server"]

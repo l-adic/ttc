@@ -37,6 +37,9 @@ mod app_env {
 
         #[arg(long, env = "JSON_RPC_PORT", default_value = "3000")]
         pub json_rpc_port: u16,
+
+        #[arg(long, env = "IMAGE_ID_CONTRACT")]
+        pub image_id_contract: String,
     }
 
     #[derive(Clone)]
@@ -44,6 +47,7 @@ mod app_env {
         pub db: Database,
         pub prover: Prover,
         pub node_url: Url,
+        pub image_id_contract: String,
     }
 
     impl AppEnv {
@@ -55,10 +59,12 @@ mod app_env {
             .await;
             let node_url = app_config.base_config.node_url()?;
             let prover = Prover::new(&node_url);
+            let image_id_contract = std::fs::read_to_string(app_config.image_id_contract)?;
             Ok(Self {
                 db,
                 prover,
                 node_url,
+                image_id_contract,
             })
         }
     }
@@ -151,10 +157,20 @@ impl ProverApiServer for ProverApiImpl {
         self.assert_in_trade_phase(address).await?;
         let api = self.clone();
         tokio::spawn(async move {
-            api.prove_impl(address).await?;
-            anyhow::Ok(())
+            let res = api.prove_impl(address).await;
+            match res {
+                Ok(_) => anyhow::Ok(()),
+                Err(err) => {
+                    error!("Prover errored with message {}", err);
+                    Err(err)
+                }
+            }
         });
         Ok(())
+    }
+
+    async fn get_image_id_contract(&self) -> Result<String, ErrorObjectOwned> {
+        Ok(self.app_env.image_id_contract.to_string())
     }
 
     async fn health_check(&self) -> Result<(), ErrorObjectOwned> {

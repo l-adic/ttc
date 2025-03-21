@@ -29,6 +29,11 @@ variable "docker_image_tag" {
   type        = string
 }
 
+variable "docker_cuda_image_tag" {
+  description = "Tag for GPU-enabled Docker images (e.g., latest-cuda, v1.0.0-cuda)"
+  type        = string
+}
+
 # Anvil Node Configuration
 variable "anvil_image_repository" {
   description = "Docker image repository for Anvil node"
@@ -67,16 +72,23 @@ variable "prover_image_repository" {
   default     = "elladic/ttc-prover-server"
 }
 
-variable "prover_cpu_count" {
-  description = "Number of CPUs for Prover server"
-  type        = number
-  default     = 8  # Maximum allowed in Cloud Run
+variable "prover_cuda_image_repository" {
+  description = "Docker image repository for GPU-enabled Prover server"
+  type        = string
+  default     = "elladic/prover-server-cuda"
 }
 
-variable "prover_memory_gb" {
-  description = "Memory in GB for Prover server"
+variable "enable_gpu_prover" {
+  description = "Enable GPU-accelerated prover server"
+  type        = bool
+  default     = true
+}
+
+# GPU Configuration
+variable "gpu_count" {
+  description = "Number of GPUs to attach to the GPU-enabled prover"
   type        = number
-  default     = 32
+  default     = 1
 }
 
 variable "prover_rust_log_level" {
@@ -163,4 +175,15 @@ variable "iap_member_list" {
   description = "List of members to grant IAP access (e.g., user:user@example.com)"
   type        = list(string)
   default     = []
+}
+
+# SSH Configuration for GPU Prover
+variable "ssh_user" {
+  description = "SSH username for GPU prover instance"
+  type        = string
+}
+
+variable "ssh_pub_key_path" {
+  description = "Path to SSH public key file for GPU prover instance"
+  type        = string
 }

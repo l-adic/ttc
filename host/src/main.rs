@@ -609,6 +609,9 @@ struct Config {
     #[arg(long, env = "NODE_PORT", default_value = "8545")]
     node_port: String,
 
+    #[arg(long, env = "MONITOR_PROTOCOL", default_value = "http")]
+    monitor_protocol: String,
+
     /// Monitor host
     #[arg(long, env = "MONITOR_HOST", default_value = "localhost")]
     monitor_host: String,
@@ -645,7 +648,7 @@ struct Config {
     #[arg(long, env = "MOCK_VERIFIER", default_value_t = false)]
     mock_verifier: bool,
 
-    #[arg(long, env = "PROVER_TIMEOUT", default_value_t = 1200)]
+    #[arg(long, env = "PROVER_TIMEOUT", default_value_t = 120)]
     prover_timeout: u64,
 }
 
@@ -656,7 +659,10 @@ impl Config {
     }
 
     fn monitor_url(&self) -> Result<Url, url::ParseError> {
-        let monitor_url = format!("http://{}:{}", self.monitor_host, self.monitor_port);
+        let monitor_url = format!(
+            "{}://{}:{}",
+            self.monitor_protocol, self.monitor_host, self.monitor_port
+        );
         Url::parse(&monitor_url)
     }
 }

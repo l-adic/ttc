@@ -27,7 +27,9 @@ methods = {workspace = true, optional = true}
 monitor-api.workspace = true
 
 [features]
+default = []
 local_prover = ["dep:risc0-ethereum-contracts", "dep:risc0-zkvm", "dep:methods"]
+cuda = ["local_prover", "risc0-zkvm/cuda"]
 
 [[bin]]
 name = "create-db"
