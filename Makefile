@@ -19,7 +19,7 @@ DB_USER ?= postgres
 DB_PASSWORD ?= postgres
 DB_NAME ?= ttc
 
-.PHONY: build-methods build-contracts build-prover build-host build test clean \
+.PHONY: build-methods build-contracts compile-contracts build-prover build-host build test clean \
 	lint fmt check all run-prover-server run-monitor-server fetch-image-id-contract \
 	run-node-tests run-node-tests-mock create-db create-schema help
 
@@ -38,7 +38,10 @@ build-methods: ## Build the RISC Zero guest program
 	cargo build -p methods $(CARGO_BUILD_OPTIONS)
 
 build-contracts: build-methods ## Build smart contracts (requires guest)
-	cd contract && forge build
+	$(MAKE) compile-contracts
+
+compile-contracts: ## Compile smart contracts
+	cd contract && forge compile
 
 build-prover: build-contracts
 	cargo build -p monitor-server --bin prover-server $(CARGO_BUILD_OPTIONS) -F local_prover
@@ -160,6 +163,6 @@ run-monitor-server: build-monitor ## Run the monitor server
 	cargo run -p monitor-server --bin monitor-server $(CARGO_BUILD_OPTIONS)
 
 fetch-image-id-contract: ## Fetch the ImageID contract from the monitor server
-	curl -f -s -XPOST -H "Content-Type: application/json" \
+	@curl -f -s -XPOST -H "Content-Type: application/json" \
 		-d '{"jsonrpc":"2.0","method":"getImageIDContract","params":[],"id":1}' \
 		"$(MONITOR_PROTOCOL)://$(MONITOR_HOST):$(MONITOR_PORT)" | jq -r .result
