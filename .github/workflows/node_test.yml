@@ -106,7 +106,7 @@ jobs:
         make compile-contracts
         make create-schema
         export TTC_ADDRESS=$(make deploy-mock | tee /dev/tty | tail -n 1)
-        TTC_ADDRESS="$TTC_ADDRESS" make run-node-tests-mock
+        TTC_ADDRESS="$TTC_ADDRESS" make run-node-tests
     
     # Run full tests for nightly builds
     - name: Run full node tests
