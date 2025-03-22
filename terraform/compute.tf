@@ -120,7 +120,8 @@ write_files:
         -e RISC0_WORK_DIR=/tmp/risc0-work-dir \
         -e IMAGE_ID_CONTRACT=/app/contract/src/ImageID.sol \
         -v /var/run/docker.sock:/var/run/docker.sock \
-        -v /tmp/risc0-work-dir:/tmp/risc0-work-dir --privileged \
+        -v /tmp/risc0-work-dir:/tmp/risc0-work-dir \
+        --privileged \
         ${var.prover_cuda_image_repository}:${var.docker_cuda_image_tag}'
     ExecStop=/usr/bin/docker stop prover-server
     Restart=always

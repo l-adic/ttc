@@ -90,6 +90,8 @@ CHAIN_ID ?= 31337
 OWNER_KEY ?= 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 MOCK_VERIFIER ?= false
 RISC0_DEV_MODE ?= true
+MAX_ACTORS ?= 20
+PROVER_TIMEOUT ?= 60
 
 deploy-mock: ## Run node tests with mock verifier
 	RUST_LOG=info \
@@ -115,8 +117,8 @@ run-node-tests: ## Run node tests with mock verifier
 	NODE_PORT=$(NODE_PORT) \
 	MONITOR_HOST=$(MONITOR_HOST) \
 	MONITOR_PORT=$(MONITOR_PORT) \
-	MAX_ACTORS=20 \
-	PROVER_TIMEOUT=60 \
+	MAX_ACTORS=$(MAX_ACTORS) \
+	PROVER_TIMEOUT=$(PROVER_TIMEOUT) \
 	cargo run --bin host $(CARGO_BUILD_OPTIONS) -- demo \
 		--chain-id $(CHAIN_ID) \
 		--owner-key $(OWNER_KEY) \
@@ -128,7 +130,7 @@ submit-proof: ## Run node tests with mock verifier
 	MONITOR_HOST=$(MONITOR_HOST) \
 	MONITOR_PORT=$(MONITOR_PORT) \
 	MAX_ACTORS=20 \
-	PROVER_TIMEOUT=60 \
+	PROVER_TIMEOUT=$(PROVER_TIMEOUT) \
 	cargo run --bin host $(CARGO_BUILD_OPTIONS) -- submit-proof \
 		--chain-id $(CHAIN_ID) \
 		--owner-key $(OWNER_KEY) \

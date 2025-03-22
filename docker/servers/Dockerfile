@@ -66,4 +66,10 @@ RUN /root/.risc0/bin/rzup install r0vm 1.2.4
 COPY --from=builder /app/contract/src/ImageID.sol /app/contract/src/ImageID.sol
 COPY --from=builder /app/target/release/prover-server /app/target/release/
 
+# The Groth16 Receipt generation is run in docker
+RUN curl -sSL https://get.docker.com/ | sh
+
+# Create the risc0 work directory (this is a shared volume for the groth16 work)
+RUN mkdir -p /tmp/risc0-work-dir
+
 CMD ["/app/target/release/prover-server"]

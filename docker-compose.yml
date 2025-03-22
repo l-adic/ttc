@@ -40,6 +40,7 @@ services:
 
   prover-server:
     image: ${PROVER_SERVER_IMAGE:-}
+    privileged: true
     mem_limit: 8g
     build:
       context: .
@@ -52,9 +53,13 @@ services:
         condition: service_started
       postgres:
         condition: service_healthy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp/risc0-work-dir:/tmp/risc0-work-dir
     environment:
       - RUST_LOG=${RUST_LOG:-info}
       - RISC0_DEV_MODE=${RISC0_DEV_MODE:-true}
+      - RISC0_WORK_DIR=/tmp/risc0-work-dir
       - DB_HOST=postgres
       - DB_PORT=5432
       - DB_USER=postgres

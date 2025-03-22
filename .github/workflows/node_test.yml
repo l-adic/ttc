@@ -101,6 +101,7 @@ jobs:
     - name: Run node tests with mocks
       if: github.event_name != 'schedule'
       run: |
+        mkdir -p /tmp/risc0-work-dir
         RISC0_DEV_MODE=true docker compose up -d
         make fetch-image-id-contract > contract/src/ImageID.sol
         make compile-contracts
@@ -112,6 +113,7 @@ jobs:
     - name: Run full node tests
       if: github.event_name == 'schedule'
       run: |
+        mkdir -p /tmp/risc0-work-dir
         RISC0_DEV_MODE=false docker compose up -d
         make fetch-image-id-contract > contract/src/ImageID.sol
         make compile-contracts
