@@ -8,6 +8,7 @@ use url::Url;
 pub enum Command {
     Deploy(DeployConfig),
     Demo(DemoConfig),
+    SubmitProof(DemoConfig),
 }
 
 #[derive(Clone, Parser, Serialize)]

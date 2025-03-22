@@ -105,8 +105,8 @@ jobs:
         make fetch-image-id-contract > contract/src/ImageID.sol
         make compile-contracts
         make create-schema
-        make deploy-mock
-        make run-node-tests-mock
+        export TTC_ADDRESS=$(make deploy-mock | tee /dev/tty | tail -n 1)
+        TTC_ADDRESS="$TTC_ADDRESS" make run-node-tests-mock
     
     # Run full tests for nightly builds
     - name: Run full node tests
@@ -116,8 +116,8 @@ jobs:
         make fetch-image-id-contract > contract/src/ImageID.sol
         make compile-contracts
         make create-schema
-        make deploy
-        make run-node-tests
+        export TTC_ADDRESS=$(make deploy | tee /dev/tty | tail -n 1)
+        TTC_ADDRESS="$TTC_ADDRESS" make run-node-tests
     
     # Get short git SHA for tagging
     - name: Get short SHA

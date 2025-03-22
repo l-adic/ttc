@@ -201,7 +201,11 @@ impl TestSetup {
     }
 
     // Call the solver and submit the reallocation data to the contract
-    async fn reallocate(&self, proof: TopTradingCycle::Journal, seal: Vec<u8>) -> Result<()> {
+    async fn reallocate(
+        &self,
+        proof: TopTradingCycle::Journal,
+        seal: Vec<u8>,
+    ) -> Result<TradeResults> {
         let provider = create_provider(self.node_url.clone(), self.owner.clone());
         let ttc = TopTradingCycle::new(self.ttc, provider);
         let journal_data = Bytes::from(proof.abi_encode());
@@ -211,7 +215,30 @@ impl TestSetup {
             .await?
             .watch()
             .await?;
-        Ok(())
+        let stable: Vec<Actor> = self
+            .actors
+            .iter()
+            .filter(|&a| {
+                !proof
+                    .reallocations
+                    .iter()
+                    .any(|tr| tr.newOwner == a.address())
+            })
+            .cloned()
+            .collect();
+        let traders = self
+            .actors
+            .iter()
+            .cloned()
+            .filter_map(|a| {
+                let tr = proof
+                    .reallocations
+                    .iter()
+                    .find(|tr| tr.newOwner == a.address())?;
+                Some((a, tr.tokenHash))
+            })
+            .collect();
+        Ok(TradeResults { stable, traders })
     }
 
     // All of the actors withdraw their tokens, assert that they are getting the right ones!
@@ -311,8 +338,7 @@ impl TestSetup {
     }
 }
 
-async fn deploy_contracts(config: DeployConfig) -> Result<()> {
-    init_console_subscriber();
+async fn deploy_contracts(config: DeployConfig) -> Result<ContractAddresses> {
     info!("{}", serde_json::to_string_pretty(&config).unwrap());
 
     let owner = PrivateKeySigner::from_str(config.base.owner_key.as_str())?;
@@ -333,36 +359,11 @@ async fn deploy_contracts(config: DeployConfig) -> Result<()> {
     let ttc_contract = TopTradingCycle::new(ttc, &provider);
     let verifier = ttc_contract.verifier().call().await?._0;
     let addresses = ContractAddresses { ttc, nft, verifier };
-    checkpointer.save(checkpoint::Checkpoint::Deployed(addresses))?;
-    Ok(())
+    checkpointer.save(checkpoint::Checkpoint::Deployed(addresses.clone()))?;
+    Ok(addresses)
 }
 
-async fn run_demo(config: DemoConfig) -> Result<()> {
-    init_console_subscriber();
-    info!("{}", serde_json::to_string_pretty(&config).unwrap());
-    let checkpointer = {
-        let checkpointer_root_dir = Path::new(&config.base.artifacts_dir);
-        Checkpointer::new(checkpointer_root_dir, config.ttc_address)
-    };
-    let test_case = {
-        let mut runner = TestRunner::default();
-        let strategy = (Preferences::<u64>::arbitrary_with(Some(2..=config.max_actors)))
-            .prop_map(|prefs| prefs.map(U256::from));
-        strategy.new_tree(&mut runner).unwrap().current()
-    };
-    let setup = {
-        if let std::result::Result::Ok(actors) = checkpointer.load_assigned_tokens() {
-            TestSetup::new_from_checkpoint(&config, actors).await?
-        } else {
-            info!(
-                "Setting up test environment for {} actors",
-                test_case.prefs.len()
-            );
-            let setup = TestSetup::new(&config, test_case).await?;
-            checkpointer.save(Checkpoint::AssignedTokens(setup.actors.clone()))?;
-            setup
-        }
-    };
+async fn run_demo(setup: TestSetup) -> Result<()> {
 
     let ttc = {
         let provider = create_provider(setup.node_url.clone(), setup.owner.clone());
@@ -405,36 +406,13 @@ async fn run_demo(config: DemoConfig) -> Result<()> {
                 let resp =
                     monitor_api::rpc::MonitorApiClient::get_proof(&setup.monitor, *ttc.address())
                         .await?;
+                setup.checkpointer.save(Checkpoint::Proved(resp.clone()))?;
                 let journal = TopTradingCycle::Journal::abi_decode(&resp.journal, true)?;
                 Ok((journal, resp.seal))
             }
         }?;
-        setup.reallocate(proof.clone(), seal).await?;
-        let stable: Vec<Actor> = setup
-            .actors
-            .iter()
-            .filter(|&a| {
-                !proof
-                    .reallocations
-                    .iter()
-                    .any(|tr| tr.newOwner == a.address())
-            })
-            .cloned()
-            .collect();
-        let traders = setup
-            .actors
-            .iter()
-            .cloned()
-            .filter_map(|a| {
-                let tr = proof
-                    .reallocations
-                    .iter()
-                    .find(|tr| tr.newOwner == a.address())?;
-                Some((a, tr.tokenHash))
-            })
-            .collect();
-        let res = TradeResults { stable, traders };
-        checkpointer.save(Checkpoint::Traded(res.clone()))?;
+        let res = setup.reallocate(proof.clone(), seal).await?;
+        setup.checkpointer.save(Checkpoint::Traded(res.clone()))?;
         res
     } else {
         setup.checkpointer.load_trade_results()?
@@ -451,10 +429,73 @@ async fn run_demo(config: DemoConfig) -> Result<()> {
     Ok(())
 }
 
+async fn submit_proof(setup: TestSetup) -> Result<()> {
+    let ttc = {
+        let provider = create_provider(setup.node_url.clone(), setup.owner.clone());
+        TopTradingCycle::new(setup.ttc, provider)
+    };
+
+    let starting_phase = ttc.currentPhase().call().await?._0;
+    if starting_phase != 2 {
+        anyhow::bail!("Contract is not in the Trade phase, cannot submit proof");
+    }
+    let proof = setup.checkpointer.load_proof()?;
+    let res = {
+        let journal = TopTradingCycle::Journal::abi_decode(&proof.journal, true)?;
+        let seal = proof.seal;
+        setup.reallocate(journal, seal).await?
+    };
+    setup.checkpointer.save(Checkpoint::Traded(res.clone()))?;
+    Ok(())
+}
 #[tokio::main]
 async fn main() -> Result<()> {
+    init_console_subscriber();
     match Command::parse() {
-        Command::Deploy(config) => deploy_contracts(config).await,
-        Command::Demo(config) => run_demo(config).await,
+        Command::Deploy(config) => {
+            let addresses = deploy_contracts(config).await?;
+            println!("{}", addresses.ttc);
+            Ok(())
+        },
+        Command::Demo(config) => {
+            info!("{}", serde_json::to_string_pretty(&config).unwrap());
+            let checkpointer = {
+                let checkpointer_root_dir = Path::new(&config.base.artifacts_dir);
+                Checkpointer::new(checkpointer_root_dir, config.ttc_address)
+            };
+            let test_case = {
+                let mut runner = TestRunner::default();
+                let strategy = (Preferences::<u64>::arbitrary_with(Some(2..=config.max_actors)))
+                    .prop_map(|prefs| prefs.map(U256::from));
+                strategy.new_tree(&mut runner).unwrap().current()
+            };
+            let setup = {
+                if let std::result::Result::Ok(actors) = checkpointer.load_assigned_tokens() {
+                    TestSetup::new_from_checkpoint(&config, actors).await?
+                } else {
+                    info!(
+                        "Setting up test environment for {} actors",
+                        test_case.prefs.len()
+                    );
+                    let setup = TestSetup::new(&config, test_case).await?;
+                    checkpointer.save(Checkpoint::AssignedTokens(setup.actors.clone()))?;
+                    setup
+                }
+            };
+            run_demo(setup).await
+        },
+        Command::SubmitProof(config) => {
+            info!("{}", serde_json::to_string_pretty(&config).unwrap());
+            let checkpointer = {
+                let checkpointer_root_dir = Path::new(&config.base.artifacts_dir);
+                Checkpointer::new(checkpointer_root_dir, config.ttc_address)
+            };
+            let setup = if let std::result::Result::Ok(actors) = checkpointer.load_assigned_tokens() {
+                TestSetup::new_from_checkpoint(&config, actors).await?
+            } else {
+                anyhow::bail!("No actors found in checkpoint, cannot submit proof");
+            };
+            submit_proof(setup).await
+        },
     }
 }

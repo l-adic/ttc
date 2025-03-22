@@ -121,6 +121,18 @@ run-node-tests: ## Run node tests with mock verifier
 		--chain-id $(CHAIN_ID) \
 		--owner-key $(OWNER_KEY) \
 
+submit-proof: ## Run node tests with mock verifier
+	RUST_LOG=info \
+	NODE_HOST=$(NODE_HOST) \
+	NODE_PORT=$(NODE_PORT) \
+	MONITOR_HOST=$(MONITOR_HOST) \
+	MONITOR_PORT=$(MONITOR_PORT) \
+	MAX_ACTORS=20 \
+	PROVER_TIMEOUT=60 \
+	cargo run --bin host $(CARGO_BUILD_OPTIONS) -- submit-proof \
+		--chain-id $(CHAIN_ID) \
+		--owner-key $(OWNER_KEY) \
+
 create-db: ## Create the database
 	DB_HOST=$(DB_HOST) \
 	DB_PORT=$(DB_PORT) \

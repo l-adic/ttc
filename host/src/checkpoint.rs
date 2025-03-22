@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 
 use crate::actor::{Actor, ActorData};
 use crate::{actor::TradeResults, contract::ttc::TopTradingCycle};
+use monitor_api::types::Proof;
 use risc0_steel::alloy::primitives::{Address, B256, U256};
 use risc0_steel::alloy::{
     hex::{self, ToHexExt},
@@ -10,7 +11,7 @@ use risc0_steel::alloy::{
 use serde::Serialize;
 use tracing::info;
 
-#[derive(Serialize, serde::Deserialize)]
+#[derive(Clone, Serialize, serde::Deserialize)]
 pub struct ContractAddresses {
     pub ttc: Address,
     pub nft: Vec<Address>,
@@ -115,6 +116,7 @@ impl From<TokenOwner> for ActorData {
 pub enum Checkpoint {
     Deployed(ContractAddresses),
     AssignedTokens(Vec<Actor>),
+    Proved(Proof),
     Traded(TradeResults),
 }
 
@@ -144,6 +146,12 @@ impl Checkpointer {
                 let serial: Vec<TokenOwner> = actors.into_iter().map(TokenOwner::from).collect();
                 serde_json::to_writer(file, &serial)?;
             }
+            Checkpoint::Proved(proof) => {
+                let path = self.root_dir.join("proved.json");
+                info!("Saving proof to: {:#}", path.display());
+                let file = std::fs::File::create(path)?;
+                serde_json::to_writer(file, &proof)?;
+            }
             Checkpoint::Traded(results) => {
                 let path = self.root_dir.join("traded.json");
                 info!("Saving trade results to: {:#}", path.display());
@@ -170,6 +178,14 @@ impl Checkpointer {
         let serial: Vec<TokenOwner> = serde_json::from_reader(file)?;
         let actors = serial.into_iter().map(Actor::from).collect();
         Ok(actors)
+    }
+
+    pub fn load_proof(&self) -> anyhow::Result<Proof> {
+        let path = self.root_dir.join("proved.json");
+        info!("Loading proof from: {:#}", path.display());
+        let file = std::fs::File::open(path)?;
+        let proof: Proof = serde_json::from_reader(file)?;
+        Ok(proof)
     }
 
     pub fn load_trade_results(&self) -> anyhow::Result<TradeResults> {
