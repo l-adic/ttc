@@ -364,7 +364,6 @@ async fn deploy_contracts(config: DeployConfig) -> Result<ContractAddresses> {
 }
 
 async fn run_demo(setup: TestSetup) -> Result<()> {
-
     let ttc = {
         let provider = create_provider(setup.node_url.clone(), setup.owner.clone());
         TopTradingCycle::new(setup.ttc, provider)
@@ -456,7 +455,7 @@ async fn main() -> Result<()> {
             let addresses = deploy_contracts(config).await?;
             println!("{}", addresses.ttc);
             Ok(())
-        },
+        }
         Command::Demo(config) => {
             info!("{}", serde_json::to_string_pretty(&config).unwrap());
             let checkpointer = {
@@ -483,19 +482,20 @@ async fn main() -> Result<()> {
                 }
             };
             run_demo(setup).await
-        },
+        }
         Command::SubmitProof(config) => {
             info!("{}", serde_json::to_string_pretty(&config).unwrap());
             let checkpointer = {
                 let checkpointer_root_dir = Path::new(&config.base.artifacts_dir);
                 Checkpointer::new(checkpointer_root_dir, config.ttc_address)
             };
-            let setup = if let std::result::Result::Ok(actors) = checkpointer.load_assigned_tokens() {
+            let setup = if let std::result::Result::Ok(actors) = checkpointer.load_assigned_tokens()
+            {
                 TestSetup::new_from_checkpoint(&config, actors).await?
             } else {
                 anyhow::bail!("No actors found in checkpoint, cannot submit proof");
             };
             submit_proof(setup).await
-        },
+        }
     }
 }
