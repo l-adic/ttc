@@ -62,7 +62,7 @@ impl EventsManager {
         {
             let events = self.events.lock().await;
             if events.contains_key(&address) {
-                anyhow::bail!("Already monitoring trade phase for contract {}", address);
+                return Ok(());
             }
         };
 

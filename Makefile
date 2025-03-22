@@ -91,7 +91,25 @@ OWNER_KEY ?= 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 MOCK_VERIFIER ?= false
 RISC0_DEV_MODE ?= true
 
-run-node-tests-mock: ## Run node tests with mock verifier
+deploy-mock: ## Run node tests with mock verifier
+	RUST_LOG=info \
+	NODE_HOST=$(NODE_HOST) \
+	NODE_PORT=$(NODE_PORT) \
+	cargo run --bin host $(CARGO_BUILD_OPTIONS) -- deploy \
+		--chain-id $(CHAIN_ID) \
+		--owner-key $(OWNER_KEY) \
+		--mock-verifier
+
+deploy: ## Deploy contracts with Groth16 verifier
+	RUST_LOG=info \
+	NODE_HOST=$(NODE_HOST) \
+	NODE_PORT=$(NODE_PORT) \
+	cargo run --bin host $(CARGO_BUILD_OPTIONS) -- deploy \
+		--chain-id $(CHAIN_ID) \
+		--owner-key $(OWNER_KEY) \
+		--mock-verifier
+
+run-node-tests: ## Run node tests with mock verifier
 	RUST_LOG=info \
 	NODE_HOST=$(NODE_HOST) \
 	NODE_PORT=$(NODE_PORT) \
@@ -99,22 +117,21 @@ run-node-tests-mock: ## Run node tests with mock verifier
 	MONITOR_PORT=$(MONITOR_PORT) \
 	MAX_ACTORS=20 \
 	PROVER_TIMEOUT=60 \
-	cargo run --bin host $(CARGO_BUILD_OPTIONS) -- \
+	cargo run --bin host $(CARGO_BUILD_OPTIONS) -- demo \
 		--chain-id $(CHAIN_ID) \
 		--owner-key $(OWNER_KEY) \
-		--mock-verifier
 
-run-node-tests: ## Run node tests with real verifier
+submit-proof: ## Run node tests with mock verifier
 	RUST_LOG=info \
 	NODE_HOST=$(NODE_HOST) \
 	NODE_PORT=$(NODE_PORT) \
 	MONITOR_HOST=$(MONITOR_HOST) \
 	MONITOR_PORT=$(MONITOR_PORT) \
-	MAX_ACTORS=3 \
-	PROVER_TIMEOUT=3000 \
-	cargo run --bin host $(CARGO_BUILD_OPTIONS) -- \
+	MAX_ACTORS=20 \
+	PROVER_TIMEOUT=60 \
+	cargo run --bin host $(CARGO_BUILD_OPTIONS) -- submit-proof \
 		--chain-id $(CHAIN_ID) \
-		--owner-key $(OWNER_KEY)
+		--owner-key $(OWNER_KEY) \
 
 create-db: ## Create the database
 	DB_HOST=$(DB_HOST) \
