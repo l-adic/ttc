@@ -26,7 +26,9 @@ jobs:
 
     # Build contracts
     - name: Build contracts
-      run: make build-contracts
+      run: | 
+        make build-methods
+        make compile-contracts
 
     - name: Check formatting
       run: cargo fmt --check
