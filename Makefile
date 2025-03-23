@@ -37,32 +37,29 @@ help:
 build-methods: ## Build the RISC Zero guest program
 	cargo build -p methods $(CARGO_BUILD_OPTIONS)
 
-build-contracts: build-methods ## Build smart contracts (requires guest)
-	$(MAKE) compile-contracts
-
 compile-contracts: ## Compile smart contracts
 	cd contract && forge compile
 
-build-prover: build-contracts
+build-prover: ## Build the CPU based prover
 	cargo build -p monitor-server --bin prover-server $(CARGO_BUILD_OPTIONS) -F local_prover
 
-build-prover-cuda: build-contracts ## Build the RISC Zero prover with CUDA support
+build-prover-cuda: ## Build the RISC Zero prover with CUDA support
 	cargo build -p monitor-server --bin prover-server $(CARGO_BUILD_OPTIONS) -F cuda
 
-build-monitor:
+build-monitor: ## Build the monitor server binary
 	cargo build -p monitor-server --bin monitor-server $(CARGO_BUILD_OPTIONS)
 
-build-host: ## Build the RISC Zero host program
+build-host: ## Build the demo binary
 	cargo build -p host $(CARGO_BUILD_OPTIONS)
 
-build-servers: build-contracts ## Build only the server binaries
+build-servers: ## Build the prover-server and monitor-server binaries
 	cargo build $(CARGO_BUILD_OPTIONS) -p monitor-server --bin monitor-server --bin prover-server -F local_prover
 
 # Test commands
-test: build-contracts ## Run all test suites (excluding integration tests)
+test: ## Run all test suites (excluding integration tests)
 	cargo test $(CARGO_BUILD_OPTIONS) --workspace
 
-test-integration: build-contracts ## Run integration tests that require external services
+test-integration: ## Run integration tests that require external services
 	DB_HOST=$(DB_HOST) \
 	DB_PORT=$(DB_PORT) \
 	DB_USER=$(DB_USER) \
@@ -73,6 +70,9 @@ test-integration: build-contracts ## Run integration tests that require external
 
 # Cleaning
 clean: ## Clean build artifacts
+	rm -rf contract/out
+	rm -f contract/src/ImageID.sol
+	rm -f contract/src/Elf.sol
 	cargo clean
 
 # Linting and formatting
@@ -154,7 +154,7 @@ create-schema: ## Create the database schema (Must setup the database first via 
 	RUST_LOG=debug \
 	cargo run $(CARGO_BUILD_OPTIONS) -p monitor-server --bin create-schema
 
-run-prover-server: build-prover ## Run the prover server
+run-prover-server: ## Run the prover server
 	DB_HOST=$(DB_HOST) \
 	DB_PORT=$(DB_PORT) \
 	DB_USER=$(DB_USER) \
@@ -167,7 +167,7 @@ run-prover-server: build-prover ## Run the prover server
 	IMAGE_ID_CONTRACT=$(IMAGE_ID_CONTRACT) \
 	cargo run -p monitor-server --bin prover-server -F local_prover $(CARGO_BUILD_OPTIONS)
 
-run-monitor-server: build-monitor ## Run the monitor server
+run-monitor-server: ## Run the monitor server
 	DB_HOST=$(DB_HOST) \
 	DB_PORT=$(DB_PORT) \
 	DB_USER=$(DB_USER) \

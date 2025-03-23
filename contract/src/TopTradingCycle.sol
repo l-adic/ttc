@@ -50,12 +50,6 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
     
     // Mapping to track index of token in depositedTokens array
     mapping(bytes32 => uint256) private tokenHashToIndex;
-    
-    // Event for ownership transfers within the contract (not actual NFT transfers)
-    event InternalOwnershipTransferred(address indexed from, address indexed to, address indexed collection, uint256 tokenId);
-    
-    // Event for when preferences are updated
-    event PreferencesUpdated(address indexed collection, uint256 indexed tokenId, bytes32[] preferences);
 
     // Mapping from token hash to its preference list (which is a list of token hashes)
     mapping(bytes32 => bytes32[]) public tokenPreferences;
@@ -207,11 +201,6 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
         require(to != address(0), "Invalid recipient");
         
         tokenOwners[tokenHash] = to;
-        
-        // Get token data for the event
-        Token memory tokenData = depositedTokens[tokenHashToIndex[tokenHash]];
-        
-        emit InternalOwnershipTransferred(from, to, tokenData.collection, tokenData.tokenId);
     }
 
     /**
@@ -261,11 +250,6 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
         // Clear existing preferences and set new ones
         delete tokenPreferences[ownerTokenHash];
         tokenPreferences[ownerTokenHash] = preferences;
-        
-        // Get the token details for the event
-        Token memory tokenData = depositedTokens[tokenHashToIndex[ownerTokenHash]];
-        
-        emit PreferencesUpdated(tokenData.collection, tokenData.tokenId, preferences);
     }
 
     /**
