@@ -111,7 +111,7 @@ deploy: ## Deploy contracts with Groth16 verifier
 	RUST_LOG=info \
 	NODE_HOST=$(NODE_HOST) \
 	NODE_PORT=$(NODE_PORT) \
-	cargo run --bin deploy -p host $(CARGO_BUILD_OPTIONS) -- \
+	cargo run -p host --bin deploy  $(CARGO_BUILD_OPTIONS) -- \
 		--chain-id $(CHAIN_ID) \
 		--owner-key $(OWNER_KEY)
 
@@ -123,7 +123,7 @@ run-node-tests: ## Run node tests with mock verifier
 	MONITOR_PORT=$(MONITOR_PORT) \
 	MAX_ACTORS=$(MAX_ACTORS) \
 	PROVER_TIMEOUT=$(PROVER_TIMEOUT) \
-	cargo run --bin demo -p host $(CARGO_BUILD_OPTIONS) -- e2e \
+	cargo run -p host --bin demo $(CARGO_BUILD_OPTIONS) -- e2e \
 		--chain-id $(CHAIN_ID) \
 		--owner-key $(OWNER_KEY) \
 
@@ -133,9 +133,8 @@ submit-proof: ## Run node tests with mock verifier
 	NODE_PORT=$(NODE_PORT) \
 	MONITOR_HOST=$(MONITOR_HOST) \
 	MONITOR_PORT=$(MONITOR_PORT) \
-	MAX_ACTORS=20 \
 	PROVER_TIMEOUT=$(PROVER_TIMEOUT) \
-	cargo run --bin demo -p host $(CARGO_BUILD_OPTIONS) -- submit-proof \
+	cargo run -p host --bin demo $(CARGO_BUILD_OPTIONS) -- submit-proof \
 		--chain-id $(CHAIN_ID) \
 		--owner-key $(OWNER_KEY) \
 
@@ -171,7 +170,7 @@ run-prover-server: ## Run the prover server
 	IMAGE_ID_CONTRACT=$(IMAGE_ID_CONTRACT) \
 	cargo run -p monitor-server --bin prover-server -F local_prover $(CARGO_BUILD_OPTIONS)
 
-run-monitor-server: ## Run the monitor server
+run-monitor-server: build-monitor ## Run the monitor server
 	DB_HOST=$(DB_HOST) \
 	DB_PORT=$(DB_PORT) \
 	DB_USER=$(DB_USER) \
