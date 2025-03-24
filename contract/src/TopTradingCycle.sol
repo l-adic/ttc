@@ -8,40 +8,23 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IRiscZeroVerifier} from "risc0/IRiscZeroVerifier.sol";
 import {Steel, Encoding} from "risc0/steel/Steel.sol";
 import {ImageID} from "./ImageID.sol";
+import "./interface/ITopTradingCycle.sol";
 
 
 /**
  * @title TopTradingCycle
  * @dev Contract for managing NFTs from any collection in a top trading cycle
  */
-contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
+contract TopTradingCycle is ITopTradingCycle, ERC721Holder, Ownable, ReentrancyGuard {
     bytes32 public constant imageID = ImageID.PROVABLE_TTC_ID;
 
     IRiscZeroVerifier public immutable verifier;
     
-    // Phase management
-    enum Phase {
-        Deposit,
-        Rank,
-        Trade,
-        Withdraw,
-        Closed
-    }
-
     Phase public currentPhase;
     uint256 public phaseDuration;
     uint256 public phaseStartTimestamp;
     uint256 public tradeInitiatedAtBlock;
 
-    // Event for phase transitions
-    event PhaseChanged(Phase newPhase);
-
-    // Struct to represent a token from any ERC721 collection
-    struct Token {
-        address collection;  // The ERC721 contract address
-        uint256 tokenId;     // The token ID within that collection
-    }
-    
     // Mapping from token hash to current owner
     mapping(bytes32 => address) public tokenOwners;
     
@@ -50,22 +33,9 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
     
     // Mapping to track index of token in depositedTokens array
     mapping(bytes32 => uint256) private tokenHashToIndex;
-    
-    // Event for ownership transfers within the contract (not actual NFT transfers)
-    event InternalOwnershipTransferred(address indexed from, address indexed to, address indexed collection, uint256 tokenId);
-    
-    // Event for when preferences are updated
-    event PreferencesUpdated(address indexed collection, uint256 indexed tokenId, bytes32[] preferences);
 
     // Mapping from token hash to its preference list (which is a list of token hashes)
     mapping(bytes32 => bytes32[]) public tokenPreferences;
-
-    // Struct to represent a token and its preferences
-    struct TokenPreferences {
-        address owner;
-        bytes32 tokenHash;
-        bytes32[] preferences;
-    }
 
     /**
      * @dev Constructor sets the verifier contract address and phase duration
@@ -207,11 +177,6 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
         require(to != address(0), "Invalid recipient");
         
         tokenOwners[tokenHash] = to;
-        
-        // Get token data for the event
-        Token memory tokenData = depositedTokens[tokenHashToIndex[tokenHash]];
-        
-        emit InternalOwnershipTransferred(from, to, tokenData.collection, tokenData.tokenId);
     }
 
     /**
@@ -261,11 +226,6 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
         // Clear existing preferences and set new ones
         delete tokenPreferences[ownerTokenHash];
         tokenPreferences[ownerTokenHash] = preferences;
-        
-        // Get the token details for the event
-        Token memory tokenData = depositedTokens[tokenHashToIndex[ownerTokenHash]];
-        
-        emit PreferencesUpdated(tokenData.collection, tokenData.tokenId, preferences);
     }
 
     /**
@@ -297,18 +257,6 @@ contract TopTradingCycle is ERC721Holder, Ownable, ReentrancyGuard {
         }
         
         return allPreferences;
-    }
-
-    // Struct to represent a token reallocation pair
-    struct TokenReallocation {
-        bytes32 tokenHash;
-        address newOwner;
-    }
-
-    struct Journal {
-        Steel.Commitment commitment;
-        address ttcContract;
-        TokenReallocation[] reallocations;
     }
 
     /**

@@ -19,7 +19,7 @@ use alloy_primitives::{Address, B256};
 use alloy_sol_types::{SolValue, sol};
 use risc0_steel::{
     ethereum::{EthEvmInput, ETH_SEPOLIA_CHAIN_SPEC},
-    Commitment, Contract,
+    Contract,
 };
 use risc0_zkvm::guest::env;
 use hashbrown::HashMap;
@@ -27,61 +27,37 @@ use ttc::strict::{self, Preferences};
 
 risc0_zkvm::guest::entry!(main);
 
-
 sol!(
-    contract TopTradingCycle { 
-
-        #[derive(Debug, PartialEq)]
-        struct TokenPreferences {
-            address owner;
-            bytes32 token;
-            bytes32[] preferences;
-        }
-
-        function getAllTokenPreferences() external view returns (TokenPreferences[] memory);
-
-        #[derive(Debug)]
-        struct TokenReallocation {
-            bytes32 token;
-            address newOwner;
-        }
-    }
-
+    #[sol(all_derives)]
+    TopTradingCycle,
+    "../../contract/out/ITopTradingCycle.sol/ITopTradingCycle.json"
 );
 
 
-sol! {
-    #[derive(Debug)]
-    struct Journal {
-        Commitment commitment;
-        address ttcContract;
-        TopTradingCycle.TokenReallocation[] reallocations;
-    }
-}
 
-fn build_owner_dict(prefs: &[TopTradingCycle::TokenPreferences]) -> HashMap<B256, Address> {
+fn build_owner_dict(prefs: &[ITopTradingCycle::TokenPreferences]) -> HashMap<B256, Address> {
     prefs
         .iter()
         .cloned()
-        .map(|tp| (tp.token, tp.owner))
+        .map(|tp| (tp.tokenHash, tp.owner))
         .collect()
 }
 
 // This function calls the solver and produces the data we need to
 // submit to the contract
 fn reallocate(
-    depositor_address_from_token_id: &HashMap<B256, Address>,
-    prefs: Vec<TopTradingCycle::TokenPreferences>,
-) -> Vec<TopTradingCycle::TokenReallocation> {
+    depositor_address_from_token_hash: &HashMap<B256, Address>,
+    prefs: Vec<ITopTradingCycle::TokenPreferences>,
+) -> Vec<ITopTradingCycle::TokenReallocation> {
     let prefs = {
         let ps = prefs
             .into_iter()
             .map(
-                |TopTradingCycle::TokenPreferences {
-                     token,
+                |ITopTradingCycle::TokenPreferences {
+                     tokenHash,
                      preferences,
                      ..
-                 }| { (token, preferences) },
+                 }| { (tokenHash, preferences) },
             )
             .collect();
         Preferences::new(ps).unwrap()
@@ -91,18 +67,30 @@ fn reallocate(
     alloc
         .allocation
         .into_iter()
-        .map(|(new_owner, token)| {
-            let new_owner = depositor_address_from_token_id
+        .map(|(new_owner, token_hash)| {
+            let new_owner = depositor_address_from_token_hash
                 .get(&new_owner)
                 .unwrap()
                 .clone();
-            TopTradingCycle::TokenReallocation {
+            ITopTradingCycle::TokenReallocation {
                 newOwner: new_owner,
-                token,
+                tokenHash: token_hash,
             }
         })
         .collect()
 }
+
+// Hold on to your butts! This definition better match the one in the contract, but for
+// uninteresting reasons (due to Commitment type) we can't use the contract directly.
+use risc0_steel::Commitment;
+sol! {
+    struct Journal {
+        Commitment commitment;
+        address ttcContract;
+        ITopTradingCycle.TokenReallocation[] reallocations;
+    }
+}
+
 
 fn main() {
     // Read the input from the guest environment.
@@ -120,9 +108,9 @@ fn main() {
     let preferences = Contract::new(ttc, &env).call_builder(&call).call()._0;
     let initial_owners = build_owner_dict(&preferences);
     let reallocations = {
-        let res : Vec<TopTradingCycle::TokenReallocation> = reallocate(&initial_owners, preferences);
-        res.into_iter().filter(|TopTradingCycle::TokenReallocation { newOwner, token }| {
-            newOwner != initial_owners.get(token).unwrap()
+        let res : Vec<ITopTradingCycle::TokenReallocation> = reallocate(&initial_owners, preferences);
+        res.into_iter().filter(|ITopTradingCycle::TokenReallocation { newOwner, tokenHash }| {
+            newOwner != initial_owners.get(tokenHash).unwrap()
         }).collect()
     };
 

@@ -1,4 +1,4 @@
-use crate::contract::{nft::TestNFT, ttc::TopTradingCycle};
+use crate::contract::{nft::TestNFT, ttc::ITopTradingCycle};
 use anyhow::{Ok, Result};
 use risc0_steel::alloy::{network::TransactionBuilder, rpc::types::TransactionRequest};
 use risc0_steel::alloy::{
@@ -21,13 +21,13 @@ pub struct Config {
 #[derive(Clone)]
 pub struct ActorData {
     pub wallet: PrivateKeySigner,
-    pub token: TopTradingCycle::Token,
-    pub preferences: Vec<TopTradingCycle::Token>,
+    pub token: ITopTradingCycle::Token,
+    pub preferences: Vec<ITopTradingCycle::Token>,
 }
 
 pub fn make_actors_data(
     config: &Config,
-    prefs: Preferences<TopTradingCycle::Token>,
+    prefs: Preferences<ITopTradingCycle::Token>,
 ) -> Vec<ActorData> {
     prefs
         .prefs
@@ -46,8 +46,8 @@ pub fn make_actors_data(
 #[derive(Clone, PartialEq)]
 pub struct Actor {
     pub wallet: PrivateKeySigner,
-    pub token: TopTradingCycle::Token,
-    pub preferences: Vec<TopTradingCycle::Token>,
+    pub token: ITopTradingCycle::Token,
+    pub preferences: Vec<ITopTradingCycle::Token>,
 }
 
 impl Actor {
@@ -111,7 +111,7 @@ pub async fn create_actors(
     config: Config,
     ttc: Address,
     owner: PrivateKeySigner,
-    prefs: Preferences<TopTradingCycle::Token>,
+    prefs: Preferences<ITopTradingCycle::Token>,
 ) -> Result<Vec<Actor>> {
     let provider = crate::env::create_provider(config.node_url.clone(), owner.clone());
     let start_nonce = provider.get_transaction_count(owner.address()).await?;
@@ -121,7 +121,7 @@ pub async fn create_actors(
         .into_iter()
         .enumerate()
         .map(|(i, actor_data)| {
-            let ttc = TopTradingCycle::new(ttc, &provider);
+            let ttc = ITopTradingCycle::new(ttc, &provider);
             let config = config.clone();
             let owner = owner.clone();
             async move {

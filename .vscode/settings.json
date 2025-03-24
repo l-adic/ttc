@@ -1,3 +1,6 @@
 {
-    "rust-analyzer.cargo.features": ["local_prover"]
+    "rust-analyzer.cargo.features": [
+        "local_prover"
+    ],
+    "makefile.configureOnOpen": false
 }

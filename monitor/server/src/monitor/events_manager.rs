@@ -2,7 +2,7 @@ use super::db::Database;
 use crate::{
     db::schema::{Job, JobStatus},
     prover::{remote::Prover, types::AsyncProverT},
-    ttc_contract::TopTradingCycle::{self, PhaseChanged},
+    ttc_contract::ITopTradingCycle::{self, PhaseChanged},
 };
 use chrono::{TimeZone, Utc};
 use futures::StreamExt;
@@ -89,9 +89,9 @@ impl EventsManager {
                     let ws = WsConnect::new(rpc_url);
                     ProviderBuilder::new().on_ws(ws).await?
                 };
-                let ttc = TopTradingCycle::new(address, provider);
+                let ttc = ITopTradingCycle::new(address, provider);
                 let filter = ttc
-                    .event_filter::<TopTradingCycle::PhaseChanged>()
+                    .event_filter::<ITopTradingCycle::PhaseChanged>()
                     .from_block(from_block)
                     .to_block(BlockNumberOrTag::Latest);
                 let subscription = filter.subscribe().await.map_err(anyhow::Error::new)?;

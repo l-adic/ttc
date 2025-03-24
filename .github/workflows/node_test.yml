@@ -101,9 +101,11 @@ jobs:
     - name: Run node tests with mocks
       if: github.event_name != 'schedule'
       run: |
+        mkdir -p /tmp/risc0-work-dir
         RISC0_DEV_MODE=true docker compose up -d
+        make compile-contract-deps
         make fetch-image-id-contract > contract/src/ImageID.sol
-        make compile-contracts
+        make compile-ttc-contract
         make create-schema
         export TTC_ADDRESS=$(make deploy-mock | tee /dev/tty | tail -n 1)
         TTC_ADDRESS="$TTC_ADDRESS" make run-node-tests
@@ -112,9 +114,11 @@ jobs:
     - name: Run full node tests
       if: github.event_name == 'schedule'
       run: |
+        mkdir -p /tmp/risc0-work-dir
         RISC0_DEV_MODE=false docker compose up -d
+        make compile-contract-deps
         make fetch-image-id-contract > contract/src/ImageID.sol
-        make compile-contracts
+        make compile-ttc-contract
         make create-schema
         export TTC_ADDRESS=$(make deploy | tee /dev/tty | tail -n 1)
         TTC_ADDRESS="$TTC_ADDRESS" make run-node-tests

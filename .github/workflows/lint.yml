@@ -23,13 +23,15 @@ jobs:
       with:
         version: 1.2.4
 
+    - name: Check formatting
+      run: cargo fmt --check
 
     # Build contracts
     - name: Build contracts
-      run: make build-contracts
-
-    - name: Check formatting
-      run: cargo fmt --check
+      run: | 
+        make build-methods
+        cp monitor/contract/* contract/src/
+        make compile-ttc-contract
 
     - name: Run clippy
       run: make lint

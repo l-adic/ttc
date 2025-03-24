@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import {ControlID, RiscZeroGroth16Verifier} from "risc0/groth16/RiscZeroGroth16Verifier.sol";
-import {IRiscZeroVerifier} from "risc0/IRiscZeroVerifier.sol";
 
 
 contract Verifier is RiscZeroGroth16Verifier {

@@ -16,7 +16,7 @@ async fn assert_in_trade_phase(
     provider: impl Provider<Http<Client>, Ethereum>,
     address: Address,
 ) -> anyhow::Result<()> {
-    let ttc = ttc_contract::TopTradingCycle::new(address, provider);
+    let ttc = ttc_contract::ITopTradingCycle::new(address, provider);
     let phase = ttc.currentPhase().call().await?._0;
     if phase != 2 {
         anyhow::bail!(

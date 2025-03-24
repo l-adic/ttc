@@ -10,7 +10,7 @@ MONITOR_PORT ?= 3030
 PROVER_PROTOCOL ?= http
 PROVER_HOST ?= localhost
 PROVER_PORT ?= 3000
-IMAGE_ID_CONTRACT ?= contract/src/ImageID.sol
+IMAGE_ID_CONTRACT ?= monitor/contract/ImageID.sol
 
 # Database defaults
 DB_HOST ?= localhost
@@ -37,32 +37,32 @@ help:
 build-methods: ## Build the RISC Zero guest program
 	cargo build -p methods $(CARGO_BUILD_OPTIONS)
 
-build-contracts: build-methods ## Build smart contracts (requires guest)
-	$(MAKE) compile-contracts
+compile-ttc-contract: ## Compile smart contracts
+	cd contract && forge compile src/TopTradingCycle.sol --names
 
-compile-contracts: ## Compile smart contracts
-	cd contract && forge compile
+compile-contract-deps: ## Compile smart contracts
+	cd contract && forge compile src/interface src/verifier src/nft --names
 
-build-prover: build-contracts
+build-prover: ## Build the CPU based prover
 	cargo build -p monitor-server --bin prover-server $(CARGO_BUILD_OPTIONS) -F local_prover
 
-build-prover-cuda: build-contracts ## Build the RISC Zero prover with CUDA support
+build-prover-cuda: ## Build the RISC Zero prover with CUDA support
 	cargo build -p monitor-server --bin prover-server $(CARGO_BUILD_OPTIONS) -F cuda
 
-build-monitor:
+build-monitor: ## Build the monitor server binary
 	cargo build -p monitor-server --bin monitor-server $(CARGO_BUILD_OPTIONS)
 
-build-host: ## Build the RISC Zero host program
+build-host: ## Build the demo binary
 	cargo build -p host $(CARGO_BUILD_OPTIONS)
 
-build-servers: build-contracts ## Build only the server binaries
+build-servers: ## Build the prover-server and monitor-server binaries
 	cargo build $(CARGO_BUILD_OPTIONS) -p monitor-server --bin monitor-server --bin prover-server -F local_prover
 
 # Test commands
-test: build-contracts ## Run all test suites (excluding integration tests)
+test: ## Run all test suites (excluding integration tests)
 	cargo test $(CARGO_BUILD_OPTIONS) --workspace
 
-test-integration: build-contracts ## Run integration tests that require external services
+test-integration: ## Run integration tests that require external services
 	DB_HOST=$(DB_HOST) \
 	DB_PORT=$(DB_PORT) \
 	DB_USER=$(DB_USER) \
@@ -73,6 +73,11 @@ test-integration: build-contracts ## Run integration tests that require external
 
 # Cleaning
 clean: ## Clean build artifacts
+	rm -rf contract/out
+	rm -f contract/src/ImageID.sol
+	rm -f contract/src/Elf.sol
+	rm -f monitor/contract/ImageID.sol
+	rm -f monitor/contract/Elf.sol
 	cargo clean
 
 # Linting and formatting
@@ -90,12 +95,14 @@ CHAIN_ID ?= 31337
 OWNER_KEY ?= 0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 MOCK_VERIFIER ?= false
 RISC0_DEV_MODE ?= true
+MAX_ACTORS ?= 20
+PROVER_TIMEOUT ?= 60
 
 deploy-mock: ## Run node tests with mock verifier
 	RUST_LOG=info \
 	NODE_HOST=$(NODE_HOST) \
 	NODE_PORT=$(NODE_PORT) \
-	cargo run --bin host $(CARGO_BUILD_OPTIONS) -- deploy \
+	cargo run -p host --bin deploy $(CARGO_BUILD_OPTIONS) -- \
 		--chain-id $(CHAIN_ID) \
 		--owner-key $(OWNER_KEY) \
 		--mock-verifier
@@ -104,10 +111,9 @@ deploy: ## Deploy contracts with Groth16 verifier
 	RUST_LOG=info \
 	NODE_HOST=$(NODE_HOST) \
 	NODE_PORT=$(NODE_PORT) \
-	cargo run --bin host $(CARGO_BUILD_OPTIONS) -- deploy \
+	cargo run -p host --bin deploy  $(CARGO_BUILD_OPTIONS) -- \
 		--chain-id $(CHAIN_ID) \
-		--owner-key $(OWNER_KEY) \
-		--mock-verifier
+		--owner-key $(OWNER_KEY)
 
 run-node-tests: ## Run node tests with mock verifier
 	RUST_LOG=info \
@@ -115,9 +121,9 @@ run-node-tests: ## Run node tests with mock verifier
 	NODE_PORT=$(NODE_PORT) \
 	MONITOR_HOST=$(MONITOR_HOST) \
 	MONITOR_PORT=$(MONITOR_PORT) \
-	MAX_ACTORS=20 \
-	PROVER_TIMEOUT=60 \
-	cargo run --bin host $(CARGO_BUILD_OPTIONS) -- demo \
+	MAX_ACTORS=$(MAX_ACTORS) \
+	PROVER_TIMEOUT=$(PROVER_TIMEOUT) \
+	cargo run -p host --bin demo $(CARGO_BUILD_OPTIONS) -- e2e \
 		--chain-id $(CHAIN_ID) \
 		--owner-key $(OWNER_KEY) \
 
@@ -127,9 +133,8 @@ submit-proof: ## Run node tests with mock verifier
 	NODE_PORT=$(NODE_PORT) \
 	MONITOR_HOST=$(MONITOR_HOST) \
 	MONITOR_PORT=$(MONITOR_PORT) \
-	MAX_ACTORS=20 \
-	PROVER_TIMEOUT=60 \
-	cargo run --bin host $(CARGO_BUILD_OPTIONS) -- submit-proof \
+	PROVER_TIMEOUT=$(PROVER_TIMEOUT) \
+	cargo run -p host --bin demo $(CARGO_BUILD_OPTIONS) -- submit-proof \
 		--chain-id $(CHAIN_ID) \
 		--owner-key $(OWNER_KEY) \
 
@@ -152,7 +157,7 @@ create-schema: ## Create the database schema (Must setup the database first via 
 	RUST_LOG=debug \
 	cargo run $(CARGO_BUILD_OPTIONS) -p monitor-server --bin create-schema
 
-run-prover-server: build-prover ## Run the prover server
+run-prover-server: ## Run the prover server
 	DB_HOST=$(DB_HOST) \
 	DB_PORT=$(DB_PORT) \
 	DB_USER=$(DB_USER) \

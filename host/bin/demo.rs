@@ -2,13 +2,9 @@ use anyhow::{Ok, Result};
 use clap::Parser;
 use host::{
     actor::{self, Actor, TradeResults},
-    checkpoint::{self, Checkpoint, Checkpointer, ContractAddresses},
-    cli::{Command, DemoConfig, DeployConfig},
-    contract::{
-        nft::TestNFT,
-        ttc::TopTradingCycle::{self},
-    },
-    deployer::{deploy_for_test, Artifacts},
+    checkpoint::{Checkpoint, Checkpointer},
+    cli::{Command, DemoConfig},
+    contract::{nft::TestNFT, ttc::ITopTradingCycle},
     env::{create_provider, init_console_subscriber},
 };
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
@@ -42,7 +38,7 @@ struct TestSetup {
 fn make_token_preferences(
     nft: Vec<Address>,
     prefs: Preferences<U256>,
-) -> Preferences<TopTradingCycle::Token> {
+) -> Preferences<ITopTradingCycle::Token> {
     let mut rng = rand::thread_rng();
     let m = prefs.prefs.keys().fold(HashMap::new(), |mut acc, k| {
         let collection = nft.choose(&mut rng).unwrap();
@@ -51,7 +47,7 @@ fn make_token_preferences(
     });
     prefs.clone().map(|v| {
         let collection = m.get(&v).unwrap();
-        TopTradingCycle::Token {
+        ITopTradingCycle::Token {
             collection: *collection,
             tokenId: v,
         }
@@ -120,7 +116,7 @@ impl TestSetup {
             .map(|actor| {
                 let provider = create_provider(self.node_url.clone(), actor.wallet.clone());
                 let nft = TestNFT::new(actor.token.collection, provider.clone());
-                let ttc = TopTradingCycle::new(self.ttc, provider);
+                let ttc = ITopTradingCycle::new(self.ttc, provider);
                 async move {
                     nft.approve(self.ttc, actor.token.tokenId)
                         .send()
@@ -141,7 +137,7 @@ impl TestSetup {
 
         for actor in self.actors.iter() {
             let provider = create_provider(self.node_url.clone(), actor.wallet.clone());
-            let ttc = TopTradingCycle::new(self.ttc, provider);
+            let ttc = ITopTradingCycle::new(self.ttc, provider);
             {
                 let t = ttc
                     .getTokenFromHash(actor.token.hash())
@@ -167,7 +163,7 @@ impl TestSetup {
             .into_iter()
             .map(|actor| {
                 let provider = create_provider(self.node_url.clone(), actor.wallet);
-                let ttc = TopTradingCycle::new(self.ttc, provider);
+                let ttc = ITopTradingCycle::new(self.ttc, provider);
                 let prefs = actor
                     .preferences
                     .iter()
@@ -203,11 +199,11 @@ impl TestSetup {
     // Call the solver and submit the reallocation data to the contract
     async fn reallocate(
         &self,
-        proof: TopTradingCycle::Journal,
+        proof: ITopTradingCycle::Journal,
         seal: Vec<u8>,
     ) -> Result<TradeResults> {
         let provider = create_provider(self.node_url.clone(), self.owner.clone());
-        let ttc = TopTradingCycle::new(self.ttc, provider);
+        let ttc = ITopTradingCycle::new(self.ttc, provider);
         let journal_data = Bytes::from(proof.abi_encode());
         ttc.reallocateTokens(journal_data, Bytes::from(seal))
             .gas(self.config.base.max_gas)
@@ -250,7 +246,7 @@ impl TestSetup {
                 .iter()
                 .map(|actor| {
                     let provider = create_provider(self.node_url.clone(), actor.wallet.clone());
-                    let ttc = TopTradingCycle::new(self.ttc, provider.clone());
+                    let ttc = ITopTradingCycle::new(self.ttc, provider.clone());
                     async move {
                         eprintln!(
                             "Withdrawing token {:#} for existing owner {:#}",
@@ -278,7 +274,7 @@ impl TestSetup {
                 .iter()
                 .map(|(actor, new_token_hash)| {
                     let provider = create_provider(self.node_url.clone(), actor.wallet.clone());
-                    let ttc = TopTradingCycle::new(self.ttc, provider.clone());
+                    let ttc = ITopTradingCycle::new(self.ttc, provider.clone());
                     async move {
                         eprintln!(
                             "Withdrawing token {:#} for new owner {:#}",
@@ -332,41 +328,16 @@ impl TestSetup {
 
     async fn advance_phase(&self) -> Result<()> {
         let provider = create_provider(self.node_url.clone(), self.owner.clone());
-        let ttc = TopTradingCycle::new(self.ttc, provider);
+        let ttc = ITopTradingCycle::new(self.ttc, provider);
         ttc.advancePhase().send().await?.watch().await?;
         Ok(())
     }
 }
 
-async fn deploy_contracts(config: DeployConfig) -> Result<ContractAddresses> {
-    info!("{}", serde_json::to_string_pretty(&config).unwrap());
-
-    let owner = PrivateKeySigner::from_str(config.base.owner_key.as_str())?;
-    let node_url = config.node_url()?;
-    let provider = create_provider(node_url.clone(), owner.clone());
-    let Artifacts { ttc, nft } = deploy_for_test(
-        config.num_erc721,
-        config.phase_duration,
-        provider.clone(),
-        config.mock_verifier,
-    )
-    .await?;
-    let checkpointer = {
-        let checkpointer_root_dir = Path::new(&config.base.artifacts_dir);
-        Checkpointer::new(checkpointer_root_dir, ttc)
-    };
-    // Get verifier address from TTC contract
-    let ttc_contract = TopTradingCycle::new(ttc, &provider);
-    let verifier = ttc_contract.verifier().call().await?._0;
-    let addresses = ContractAddresses { ttc, nft, verifier };
-    checkpointer.save(checkpoint::Checkpoint::Deployed(addresses.clone()))?;
-    Ok(addresses)
-}
-
 async fn run_demo(setup: TestSetup) -> Result<()> {
     let ttc = {
         let provider = create_provider(setup.node_url.clone(), setup.owner.clone());
-        TopTradingCycle::new(setup.ttc, provider)
+        ITopTradingCycle::new(setup.ttc, provider)
     };
 
     let starting_phase = ttc.currentPhase().call().await?._0;
@@ -406,7 +377,7 @@ async fn run_demo(setup: TestSetup) -> Result<()> {
                     monitor_api::rpc::MonitorApiClient::get_proof(&setup.monitor, *ttc.address())
                         .await?;
                 setup.checkpointer.save(Checkpoint::Proved(resp.clone()))?;
-                let journal = TopTradingCycle::Journal::abi_decode(&resp.journal, true)?;
+                let journal = ITopTradingCycle::Journal::abi_decode(&resp.journal, true)?;
                 Ok((journal, resp.seal))
             }
         }?;
@@ -431,7 +402,7 @@ async fn run_demo(setup: TestSetup) -> Result<()> {
 async fn submit_proof(setup: TestSetup) -> Result<()> {
     let ttc = {
         let provider = create_provider(setup.node_url.clone(), setup.owner.clone());
-        TopTradingCycle::new(setup.ttc, provider)
+        ITopTradingCycle::new(setup.ttc, provider)
     };
 
     let starting_phase = ttc.currentPhase().call().await?._0;
@@ -440,7 +411,7 @@ async fn submit_proof(setup: TestSetup) -> Result<()> {
     }
     let proof = setup.checkpointer.load_proof()?;
     let res = {
-        let journal = TopTradingCycle::Journal::abi_decode(&proof.journal, true)?;
+        let journal = ITopTradingCycle::Journal::abi_decode(&proof.journal, true)?;
         let seal = proof.seal;
         setup.reallocate(journal, seal).await?
     };
@@ -451,12 +422,7 @@ async fn submit_proof(setup: TestSetup) -> Result<()> {
 async fn main() -> Result<()> {
     init_console_subscriber();
     match Command::parse() {
-        Command::Deploy(config) => {
-            let addresses = deploy_contracts(config).await?;
-            println!("{}", addresses.ttc);
-            Ok(())
-        }
-        Command::Demo(config) => {
+        Command::E2E(config) => {
             info!("{}", serde_json::to_string_pretty(&config).unwrap());
             let checkpointer = {
                 let checkpointer_root_dir = Path::new(&config.base.artifacts_dir);

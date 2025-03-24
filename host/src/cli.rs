@@ -6,8 +6,7 @@ use url::Url;
 #[derive(Clone, Parser)]
 #[command(author, version, about, long_about = None)]
 pub enum Command {
-    Deploy(DeployConfig),
-    Demo(DemoConfig),
+    E2E(DemoConfig),
     SubmitProof(DemoConfig),
 }
 
@@ -46,21 +45,6 @@ impl BaseConfig {
 }
 
 #[derive(Clone, Parser, Serialize)]
-pub struct DeployConfig {
-    #[clap(flatten)]
-    pub base: BaseConfig,
-
-    #[arg(long, env = "NUM_ERC721", default_value_t = 3)]
-    pub num_erc721: usize,
-
-    #[arg(long, env = "MOCK_VERIFIER", default_value_t = false)]
-    pub mock_verifier: bool,
-
-    #[arg(long, env = "PHASE_DURATION", default_value_t = 0)]
-    pub phase_duration: u64,
-}
-
-#[derive(Clone, Parser, Serialize)]
 pub struct DemoConfig {
     #[clap(flatten)]
     pub base: BaseConfig,
@@ -88,12 +72,6 @@ pub struct DemoConfig {
 
     #[arg(long, env = "TTC_ADDRESS")]
     pub ttc_address: Address,
-}
-
-impl DeployConfig {
-    pub fn node_url(&self) -> Result<Url, url::ParseError> {
-        self.base.node_url()
-    }
 }
 
 impl DemoConfig {

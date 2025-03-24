@@ -1,4 +1,4 @@
-use crate::ttc_contract::TopTradingCycle;
+use crate::ttc_contract::ITopTradingCycle;
 use anyhow::{Context, Ok, Result};
 use methods::PROVABLE_TTC_ELF;
 use risc0_ethereum_contracts::encode_seal;
@@ -39,7 +39,7 @@ impl ProverT for Prover {
     async fn prove(&self, address: Address) -> Result<Proof> {
         let evm_input = {
             let provider = create_provider(self.node_url.clone());
-            let ttc = TopTradingCycle::new(address, provider);
+            let ttc = ITopTradingCycle::new(address, provider);
             let block_number: u64 = {
                 let bn = ttc.tradeInitiatedAtBlock().call().await?;
                 u64::try_from(bn._0).context("block number is too large")
@@ -55,7 +55,7 @@ impl ProverT for Prover {
 
             let mut contract = risc0_steel::Contract::preflight(*ttc.address(), &mut env);
             contract
-                .call_builder(&TopTradingCycle::getAllTokenPreferencesCall {})
+                .call_builder(&ITopTradingCycle::getAllTokenPreferencesCall {})
                 .call()
                 .await?;
 
