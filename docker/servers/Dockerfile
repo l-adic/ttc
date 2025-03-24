@@ -63,7 +63,7 @@ RUN /root/.risc0/bin/rzup install
 RUN /root/.risc0/bin/rzup install cargo-risczero 1.2.4
 RUN /root/.risc0/bin/rzup install r0vm 1.2.4
 
-COPY --from=builder /app/contract/src/ImageID.sol /app/contract/src/ImageID.sol
+COPY --from=builder /app/monitor/contract/ImageID.sol /app/monitor/contract/ImageID.sol
 COPY --from=builder /app/target/release/prover-server /app/target/release/
 
 # The Groth16 Receipt generation is run in docker

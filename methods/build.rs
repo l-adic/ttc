@@ -17,8 +17,8 @@ use risc0_build_ethereum::generate_solidity_files;
 use std::{collections::HashMap, env, path::PathBuf};
 
 // Paths where the generated Solidity files will be written.
-const SOLIDITY_IMAGE_ID_PATH: &str = "../contract/src/ImageID.sol";
-const SOLIDITY_ELF_PATH: &str = "../contract/src/Elf.sol";
+const SOLIDITY_IMAGE_ID_PATH: &str = "../monitor/contract/ImageID.sol";
+const SOLIDITY_ELF_PATH: &str = "../monitor/contract/Elf.sol";
 
 fn main() {
     // Builds can be made deterministic, and thereby reproducible, by using Docker to build the

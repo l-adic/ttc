@@ -1,4 +1,3 @@
-// server/build.rs
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -7,10 +6,7 @@ use std::process::Command;
 fn main() {
     // Get the workspace directory using a more reliable method
     let manifest_dir = env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
-    let workspace_dir = Path::new(&manifest_dir)
-        .ancestors()
-        .nth(2)
-        .expect("Workspace not found");
+    let workspace_dir = Path::new(&manifest_dir).ancestors().nth(2).expect("Workspace not found");
     // Check if the contract file exists, if not, we need to compile it
     let contract_json_path =
         workspace_dir.join("contract/out/ITopTradingCycle.sol/ITopTradingCycle.json");

@@ -162,7 +162,7 @@ impl MonitorApiServer for ProverApiImpl {
 
     async fn watch_contract(&self, address: Address) -> Result<(), ErrorObjectOwned> {
         let provider = utils::create_provider(self.app_env.node_url.clone());
-        let ttc = ttc_contract::TopTradingCycle::new(address, provider);
+        let ttc = ttc_contract::ITopTradingCycle::new(address, provider);
 
         // Get the phase and handle errors explicitly
         let phase = match ttc.currentPhase().call().await {

@@ -84,7 +84,7 @@ impl ProverApiImpl {
 
     async fn assert_in_trade_phase(&self, address: Address) -> Result<(), ErrorObjectOwned> {
         let provider = utils::create_provider(self.app_env.node_url.clone());
-        let ttc = ttc_contract::TopTradingCycle::new(address, provider);
+        let ttc = ttc_contract::ITopTradingCycle::new(address, provider);
         let e_phase = ttc.currentPhase().call().await;
         match e_phase {
             Ok(phase) => {

@@ -29,7 +29,10 @@ jobs:
 
     # Build contracts
     - name: Build contracts
-      run: make build-contracts
+      run: |
+        make build-methods
+        cp monitor/contract/* contract/src/
+        make compile-ttc-contract
         
     - name: Run Tests
       run: make test

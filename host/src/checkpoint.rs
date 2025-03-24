@@ -1,7 +1,7 @@
 use std::path::{Path, PathBuf};
 
 use crate::actor::{Actor, ActorData};
-use crate::{actor::TradeResults, contract::ttc::TopTradingCycle};
+use crate::{actor::TradeResults, contract::ttc::ITopTradingCycle};
 use monitor_api::types::Proof;
 use risc0_steel::alloy::primitives::{Address, B256, U256};
 use risc0_steel::alloy::{
@@ -93,14 +93,14 @@ impl From<TokenOwner> for ActorData {
             let key = FieldBytes::from_slice(&slice);
             PrivateKeySigner::from_field_bytes(key).unwrap()
         };
-        let token = TopTradingCycle::Token {
+        let token = ITopTradingCycle::Token {
             collection: owner.token_contract,
             tokenId: owner.token_id,
         };
         let preferences = owner
             .preferences
             .iter()
-            .map(|(c, t)| TopTradingCycle::Token {
+            .map(|(c, t)| ITopTradingCycle::Token {
                 collection: *c,
                 tokenId: *t,
             })

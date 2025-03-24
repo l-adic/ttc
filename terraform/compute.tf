@@ -118,7 +118,7 @@ write_files:
         -e RISC0_PROVER=local \
         -e RUST_BACKTRACE=1 \
         -e RISC0_WORK_DIR=/tmp/risc0-work-dir \
-        -e IMAGE_ID_CONTRACT=/app/contract/src/ImageID.sol \
+        -e IMAGE_ID_CONTRACT=/app/monitor/contract/ImageID.sol \
         -v /var/run/docker.sock:/var/run/docker.sock \
         -v /tmp/risc0-work-dir:/tmp/risc0-work-dir \
         --privileged \

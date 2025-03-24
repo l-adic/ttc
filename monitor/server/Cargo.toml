@@ -26,11 +26,6 @@ risc0-zkvm = { workspace = true, optional = true }
 methods = {workspace = true, optional = true}
 monitor-api.workspace = true
 
-
-[build-dependencies]
-# This tells Cargo that our build script depends on methods' build script
-methods.workspace = true
-
 [features]
 default = []
 local_prover = ["dep:risc0-ethereum-contracts", "dep:risc0-zkvm", "dep:methods"]

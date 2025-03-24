@@ -11,11 +11,11 @@ use risc0_steel::alloy::{
 
 sol!(
     #[sol(rpc, all_derives)]
-    TopTradingCycle,
-    "../contract/out/TopTradingCycle.sol/TopTradingCycle.json"
+    ITopTradingCycle,
+    "../contract/out/ITopTradingCycle.sol/ITopTradingCycle.json"
 );
 
-impl Debug for TopTradingCycle::Token {
+impl Debug for ITopTradingCycle::Token {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -25,7 +25,7 @@ impl Debug for TopTradingCycle::Token {
     }
 }
 
-impl Display for TopTradingCycle::Token {
+impl Display for ITopTradingCycle::Token {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -35,29 +35,29 @@ impl Display for TopTradingCycle::Token {
     }
 }
 
-impl TopTradingCycle::Token {
+impl ITopTradingCycle::Token {
     // This should use the equivalent of Solidity abi.encodePacked
     pub fn hash(&self) -> FixedBytes<32> {
         keccak256(self.abi_encode_packed())
     }
 }
 
-impl PartialEq for TopTradingCycle::Token {
+impl PartialEq for ITopTradingCycle::Token {
     fn eq(&self, other: &Self) -> bool {
         self.collection == other.collection && self.tokenId == other.tokenId
     }
 }
 
-impl Eq for TopTradingCycle::Token {}
+impl Eq for ITopTradingCycle::Token {}
 
-impl Hash for TopTradingCycle::Token {
+impl Hash for ITopTradingCycle::Token {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.collection.hash(state);
         self.tokenId.hash(state);
     }
 }
 
-impl PartialEq for TopTradingCycle::TokenReallocation {
+impl PartialEq for ITopTradingCycle::TokenReallocation {
     fn eq(&self, other: &Self) -> bool {
         self.tokenHash == other.tokenHash && self.newOwner == other.newOwner
     }

@@ -10,7 +10,7 @@ MONITOR_PORT ?= 3030
 PROVER_PROTOCOL ?= http
 PROVER_HOST ?= localhost
 PROVER_PORT ?= 3000
-IMAGE_ID_CONTRACT ?= contract/src/ImageID.sol
+IMAGE_ID_CONTRACT ?= monitor/contract/ImageID.sol
 
 # Database defaults
 DB_HOST ?= localhost
@@ -37,8 +37,11 @@ help:
 build-methods: ## Build the RISC Zero guest program
 	cargo build -p methods $(CARGO_BUILD_OPTIONS)
 
-compile-contracts: ## Compile smart contracts
-	cd contract && forge compile
+compile-ttc-contract: ## Compile smart contracts
+	cd contract && forge compile src/TopTradingCycle.sol --names
+
+compile-contract-deps: ## Compile smart contracts
+	cd contract && forge compile src/interface src/verifier src/nft --names
 
 build-prover: ## Build the CPU based prover
 	cargo build -p monitor-server --bin prover-server $(CARGO_BUILD_OPTIONS) -F local_prover
@@ -73,6 +76,8 @@ clean: ## Clean build artifacts
 	rm -rf contract/out
 	rm -f contract/src/ImageID.sol
 	rm -f contract/src/Elf.sol
+	rm -f monitor/contract/ImageID.sol
+	rm -f monitor/contract/Elf.sol
 	cargo clean
 
 # Linting and formatting
@@ -97,7 +102,7 @@ deploy-mock: ## Run node tests with mock verifier
 	RUST_LOG=info \
 	NODE_HOST=$(NODE_HOST) \
 	NODE_PORT=$(NODE_PORT) \
-	cargo run --bin host $(CARGO_BUILD_OPTIONS) -- deploy \
+	cargo run -p host --bin deploy $(CARGO_BUILD_OPTIONS) -- \
 		--chain-id $(CHAIN_ID) \
 		--owner-key $(OWNER_KEY) \
 		--mock-verifier
@@ -106,10 +111,9 @@ deploy: ## Deploy contracts with Groth16 verifier
 	RUST_LOG=info \
 	NODE_HOST=$(NODE_HOST) \
 	NODE_PORT=$(NODE_PORT) \
-	cargo run --bin host $(CARGO_BUILD_OPTIONS) -- deploy \
+	cargo run --bin deploy -p host $(CARGO_BUILD_OPTIONS) -- \
 		--chain-id $(CHAIN_ID) \
-		--owner-key $(OWNER_KEY) \
-		--mock-verifier
+		--owner-key $(OWNER_KEY)
 
 run-node-tests: ## Run node tests with mock verifier
 	RUST_LOG=info \
@@ -119,7 +123,7 @@ run-node-tests: ## Run node tests with mock verifier
 	MONITOR_PORT=$(MONITOR_PORT) \
 	MAX_ACTORS=$(MAX_ACTORS) \
 	PROVER_TIMEOUT=$(PROVER_TIMEOUT) \
-	cargo run --bin host $(CARGO_BUILD_OPTIONS) -- demo \
+	cargo run --bin demo -p host $(CARGO_BUILD_OPTIONS) -- e2e \
 		--chain-id $(CHAIN_ID) \
 		--owner-key $(OWNER_KEY) \
 
@@ -131,7 +135,7 @@ submit-proof: ## Run node tests with mock verifier
 	MONITOR_PORT=$(MONITOR_PORT) \
 	MAX_ACTORS=20 \
 	PROVER_TIMEOUT=$(PROVER_TIMEOUT) \
-	cargo run --bin host $(CARGO_BUILD_OPTIONS) -- submit-proof \
+	cargo run --bin demo -p host $(CARGO_BUILD_OPTIONS) -- submit-proof \
 		--chain-id $(CHAIN_ID) \
 		--owner-key $(OWNER_KEY) \
 

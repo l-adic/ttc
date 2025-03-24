@@ -68,7 +68,7 @@ services:
       - NODE_HOST=ethereum-node
       - NODE_PORT=${ETH_PORT:-8545}
       - JSON_RPC_PORT=3000
-      - IMAGE_ID_CONTRACT=app/contract/src/ImageID.sol
+      - IMAGE_ID_CONTRACT=monitor/contract/src/ImageID.sol
     command: >
       sh -c "/app/target/release/prover-server"
     networks:

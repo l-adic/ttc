@@ -22,3 +22,11 @@ risc0-steel = { workspace = true, features = ["host"]}
 
 ttc = { workspace = true, features = ["test"] }
 monitor-api.workspace = true
+
+[[bin]]
+name = "deploy"
+path = "bin/deploy.rs"  
+
+[[bin]]
+name = "demo"
+path = "bin/demo.rs"  
