@@ -103,6 +103,7 @@ jobs:
       run: |
         mkdir -p /tmp/risc0-work-dir
         RISC0_DEV_MODE=true docker compose up -d
+        make compile-contract-deps
         make fetch-image-id-contract > contract/src/ImageID.sol
         make compile-ttc-contract
         make create-schema
@@ -115,6 +116,7 @@ jobs:
       run: |
         mkdir -p /tmp/risc0-work-dir
         RISC0_DEV_MODE=false docker compose up -d
+        make compile-contract-deps
         make fetch-image-id-contract > contract/src/ImageID.sol
         make compile-ttc-contract
         make create-schema
