@@ -2,7 +2,7 @@
 The TTC architecture consists of 2 hosted services (`Monitor` and `Prover`) and a shared Postgres database:
 
 <p align="center">
-  <img src="./docs/architecture.drawio.png" width="500" title="hover text">
+  <img src="./architecture.drawio.png" width="500" title="hover text">
 </p>
 
 The `Monitor` exposes a public facing JSON-RPC api with a [few methods](./monitor/api/src/rpc.rs). The `Monitor` has
@@ -20,7 +20,7 @@ contract updates in the `TTC` contract. The loop will run until the termination 
  - The proof request has timed out (after 250 blocks)
 
 <p align="center">
-  <img src="./docs/flow1.drawio.png" width="500" title="hover text">
+  <img src="./flow1.drawio.png" width="500" title="hover text">
 </p>
 
 ## User Input Flow
@@ -36,7 +36,7 @@ After the `Rank` phase is completed, the contract is transitioned into the `Trad
 emits an event for the `Monitor` service to act on.
 
 <p align="center">
-  <img src="./docs/flow2.drawio.png" width="500" title="hover text">
+  <img src="./flow2.drawio.png" width="500" title="hover text">
 </p>
 
 ## Prove and Trade Flow
@@ -51,7 +51,7 @@ The `Operator` can then post the trades with proof to the chain, which will enac
 to `Withdraw`. If no proof is posted within a 250 block window, anyone can manually update the phase to `Withdraw`.
 
 <p align="center">
-  <img src="./docs/flow3.drawio.png" width="500" title="hover text">
+  <img src="./flow3.drawio.png" width="500" title="hover text">
 </p>
 
 ## Withdraw and Exit Flow
@@ -62,5 +62,5 @@ After all the tokens are withdrawn, the contract enters a `Cleanup` phase. At th
 any fees earnd by the contract.
 
 <p align="center">
-  <img src="./docs/flow4.drawio.png" width="500" title="hover text">
+  <img src="./flow4.drawio.png" width="500" title="hover text">
 </p>
