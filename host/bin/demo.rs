@@ -6,6 +6,7 @@ use host::{
     cli::{Command, DemoConfig},
     contract::{nft::TestNFT, ttc::ITopTradingCycle},
     env::{create_provider, init_console_subscriber},
+    gas_metrics::{with_metrics, GasMetrics},
 };
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use proptest::{
@@ -20,6 +21,7 @@ use risc0_steel::alloy::{
     signers::local::PrivateKeySigner,
 };
 use std::{collections::HashMap, path::Path, str::FromStr, thread::sleep, time::Duration};
+use tokio::sync::Mutex;
 use tracing::info;
 use ttc::strict::Preferences;
 use url::Url;
@@ -33,6 +35,7 @@ struct TestSetup {
     monitor: HttpClient,
     timeout: Duration,
     checkpointer: Checkpointer,
+    gas_metrics: Mutex<GasMetrics>,
 }
 
 fn make_token_preferences(
@@ -84,6 +87,7 @@ impl TestSetup {
             monitor,
             timeout: Duration::from_secs(config.prover_timeout),
             checkpointer,
+            gas_metrics: Mutex::new(GasMetrics::new()),
         })
     }
 
@@ -105,6 +109,7 @@ impl TestSetup {
             monitor,
             timeout: Duration::from_secs(config.prover_timeout),
             checkpointer,
+            gas_metrics: Mutex::new(GasMetrics::new()),
         })
     }
 
@@ -118,17 +123,29 @@ impl TestSetup {
                 let nft = TestNFT::new(actor.token.collection, provider.clone());
                 let ttc = ITopTradingCycle::new(self.ttc, provider);
                 async move {
-                    nft.approve(self.ttc, actor.token.tokenId)
+                    let approval_tx = nft
+                        .approve(self.ttc, actor.token.tokenId)
                         .send()
                         .await?
-                        .watch()
+                        .get_receipt()
                         .await?;
-                    ttc.depositNFT(actor.token.clone())
+                    with_metrics(&self.gas_metrics, |m| {
+                        m.inc_counter("approve");
+                        m.record_hist("approve", approval_tx.gas_used);
+                    })
+                    .await;
+                    let deposit_tx = ttc
+                        .depositNFT(actor.token.clone())
                         .gas(self.config.base.max_gas)
                         .send()
                         .await?
-                        .watch()
+                        .get_receipt()
                         .await?;
+                    with_metrics(&self.gas_metrics, |m| {
+                        m.inc_counter("approve");
+                        m.record_hist("approve", deposit_tx.gas_used);
+                    })
+                    .await;
                     Ok(())
                 }
             })
@@ -170,12 +187,18 @@ impl TestSetup {
                     .map(|t| t.hash())
                     .collect::<Vec<_>>();
                 async move {
-                    ttc.setPreferences(actor.token.hash(), prefs.clone())
+                    let preferences_tx = ttc
+                        .setPreferences(actor.token.hash(), prefs.clone())
                         .gas(self.config.base.max_gas)
                         .send()
                         .await?
-                        .watch()
+                        .get_receipt()
                         .await?;
+                    with_metrics(&self.gas_metrics, |m| {
+                        m.inc_counter("setPreferences");
+                        m.record_hist("setPreferences", preferences_tx.gas_used);
+                    })
+                    .await;
                     let ps = ttc.getPreferences(actor.token.hash()).call().await?._0;
                     assert_eq!(ps, prefs, "Preferences not set correctly in contract!");
                     info!(
@@ -205,12 +228,18 @@ impl TestSetup {
         let provider = create_provider(self.node_url.clone(), self.owner.clone());
         let ttc = ITopTradingCycle::new(self.ttc, provider);
         let journal_data = Bytes::from(proof.abi_encode());
-        ttc.reallocateTokens(journal_data, Bytes::from(seal))
+        let realloc_tx = ttc
+            .reallocateTokens(journal_data, Bytes::from(seal))
             .gas(self.config.base.max_gas)
             .send()
             .await?
-            .watch()
+            .get_receipt()
             .await?;
+        with_metrics(&self.gas_metrics, |m| {
+            m.inc_counter("reallocateTokens");
+            m.record_hist("reallocateTokens", realloc_tx.gas_used);
+        })
+        .await;
         let stable: Vec<Actor> = self
             .actors
             .iter()
@@ -248,17 +277,23 @@ impl TestSetup {
                     let provider = create_provider(self.node_url.clone(), actor.wallet.clone());
                     let ttc = ITopTradingCycle::new(self.ttc, provider.clone());
                     async move {
-                        eprintln!(
+                        info!(
                             "Withdrawing token {:#} for existing owner {:#}",
                             actor.token.hash(),
                             actor.address()
                         );
-                        ttc.withdrawNFT(actor.token.hash())
+                        let withdraw_tx = ttc
+                            .withdrawNFT(actor.token.hash())
                             .gas(self.config.base.max_gas)
                             .send()
                             .await?
-                            .watch()
+                            .get_receipt()
                             .await?;
+                        with_metrics(&self.gas_metrics, |m| {
+                            m.inc_counter("withdrawNFT");
+                            m.record_hist("withdrawNFT", withdraw_tx.gas_used);
+                        })
+                        .await;
                         Ok(())
                     }
                 })
@@ -276,17 +311,23 @@ impl TestSetup {
                     let provider = create_provider(self.node_url.clone(), actor.wallet.clone());
                     let ttc = ITopTradingCycle::new(self.ttc, provider.clone());
                     async move {
-                        eprintln!(
+                        info!(
                             "Withdrawing token {:#} for new owner {:#}",
                             new_token_hash,
                             actor.address()
                         );
-                        ttc.withdrawNFT(*new_token_hash)
+                        let withdraw_tx = ttc
+                            .withdrawNFT(*new_token_hash)
                             .gas(self.config.base.max_gas)
                             .send()
                             .await?
-                            .watch()
+                            .get_receipt()
                             .await?;
+                        with_metrics(&self.gas_metrics, |m| {
+                            m.inc_counter("withdrawNFT");
+                            m.record_hist("withdrawNFT", withdraw_tx.gas_used);
+                        })
+                        .await;
                         Ok(())
                     }
                 })
@@ -329,12 +370,17 @@ impl TestSetup {
     async fn advance_phase(&self) -> Result<()> {
         let provider = create_provider(self.node_url.clone(), self.owner.clone());
         let ttc = ITopTradingCycle::new(self.ttc, provider);
-        ttc.advancePhase().send().await?.watch().await?;
+        let advance_tx = ttc.advancePhase().send().await?.get_receipt().await?;
+        with_metrics(&self.gas_metrics, |m| {
+            m.inc_counter("advancePhase");
+            m.record_hist("advancePhase", advance_tx.gas_used);
+        })
+        .await;
         Ok(())
     }
 }
 
-async fn run_demo(setup: TestSetup) -> Result<()> {
+async fn run_demo(setup: &TestSetup) -> Result<()> {
     let ttc = {
         let provider = create_provider(setup.node_url.clone(), setup.owner.clone());
         ITopTradingCycle::new(setup.ttc, provider)
@@ -430,8 +476,10 @@ async fn main() -> Result<()> {
             };
             let test_case = {
                 let mut runner = TestRunner::default();
-                let strategy = (Preferences::<u64>::arbitrary_with(Some(2..=config.max_actors)))
-                    .prop_map(|prefs| prefs.map(U256::from));
+                let strategy = (Preferences::<u64>::arbitrary_with(Some(
+                    config.num_actors..=config.num_actors,
+                )))
+                .prop_map(|prefs| prefs.map(U256::from));
                 strategy.new_tree(&mut runner).unwrap().current()
             };
             let setup = {
@@ -447,7 +495,9 @@ async fn main() -> Result<()> {
                     setup
                 }
             };
-            run_demo(setup).await
+            let res = run_demo(&setup).await;
+            info!("Metrics: {:}", &setup.gas_metrics.into_inner());
+            res
         }
         Command::SubmitProof(config) => {
             info!("{}", serde_json::to_string_pretty(&config).unwrap());

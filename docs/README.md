@@ -1,4 +1,4 @@
-## Architecture Diagram
+# Architecture Diagram
 The TTC architecture consists of 2 hosted services (`Monitor` and `Prover`) and a shared Postgres database:
 
 <p align="center">
@@ -11,6 +11,8 @@ access to the `Prover` service, but the `Prover` service exposes no public api.
 The `Monitor` runs on an extremely basic VM, the `Prover` runs on a GPU enabled VM 
 (currently using an [L4](https://www.nvidia.com/en-us/data-center/l4/) instance on GCP)
 
+
+# Flows
 
 ## Deployment Flow.
 

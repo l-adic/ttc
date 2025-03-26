@@ -11,25 +11,16 @@ Instead we create a pool, where the owners are asked to each rank the tokens in 
 The [wikipedia article](https://en.wikipedia.org/wiki/Top_trading_cycle) does a good job explaining what the algorithm and setting is, and hints at various generalizations with links in the footnotes.
 
 ## Architecture
-1. A Solidity smart contract capabale of 
-    - holding NFTs in a custodial mannor (ideally with safe retrieval in case the participant wants to exit before completion)
-    - accepting trading preferences
-    - "locking down" for a period of time long enough to execute the trading algorithm off chain
-    - accepting and validating proofs for the results of the trading algorithm (a "re-allocation")
-    - allowing users to withdraw according to re-allocation
-2. A rust implementation of the Top Trading Cycle (TTC) algorithm, and a compatibility layer for inputs/outputs expected by the contract.
-3. Risc-Zero zkvm + [Steel](https://github.com/risc0/risc0-ethereum/tree/main/crates/steel) for generating Groth16 proofs of the TTC execution on smart contract data.
-4. TODO: A server to monitor the contracts for proof requests / callbacks, and a gpu accelerated environment to construct the proofs.
-5. TODO: A simple UI + testnet deployment for illustration purposes.
+For architecture diagrams, see [here](./docs/README.md#architecture-diagram). For more details on the flows and service interaction, see [here](./docs/README.md#flows)
 
-## Test against local node
-The `host` crate contains an end-to-end test using a randomly generated allocation. See the [node_test](https://github.com/l-adic/ttc/blob/main/.github/workflows/node_test.yml) workflow for how you would set these up and run locally.
+## Development Environment Setup
 
-## Development Environment
+Two tmuxinator configurations are provided for development. Both configurations set up:
+- Ethereum node and Postgres
+- Prover and Monitor servers
+- System monitoring (e.g htop, nvidia-smi)
+- Command shell
 
-### Development Environment Setup
-
-Two tmuxinator configurations are provided for development:
 
 #### 1. Local Development (`.tmuxinator.yml`)
 Run services locally with cargo:
@@ -43,25 +34,31 @@ Run all services in Docker containers:
 tmuxinator start -p .tmuxinator.docker.yml
 ```
 
-The Docker configuration automatically rebuilds the prover-server and monitor-server images before starting to ensure they reflect your current code. This is important when you've made changes to:
-- Any Rust source files
-- Cargo.toml dependencies
-- Dockerfile configurations
+## Testing
+The `host` crate contains an end-to-end test using a randomly generated allocation. You can check the corresponding [github workflow](./.github/workflows/node_test.yml) for reference,
+and view the [Makefile](./Makefile) for a complete set of config options
 
-If you need to manually rebuild the images:
+1. Deploy the services (see [above](./README.md#development-environment-setup)) or use a hosted deployment.
+
+2. You must fetch the `ImageID.sol` contract and store it in the correct location. This contract is what cryptographically binds the solidity verifier to the rust TTC program.
+
 ```bash
-docker compose build prover-server monitor-server
+> make fetch-image-id-contract > contract/src/ImageID.sol
 ```
 
-Both configurations set up:
-- Ethereum node and Postgres logs
-- Prover and Monitor servers
-- System monitoring (htop)
-- Command shell
+3. Deploy the contracts:
 
-#### Tmux Key Bindings
-- Exit/detach from tmux: `Ctrl-b d`
-- Switch between windows: `Ctrl-b [0-9]` or mouse click
-- Switch between panes: `Ctrl-b arrow` or mouse click
-- Scroll in a pane: Mouse wheel or `Ctrl-b [` then arrow keys (press `q` to exit scroll mode)
-- Copy text: Select with mouse (may need to hold Shift depending on your terminal)
+```
+> make deploy
+```
+NOTE: use the `deploy-mock` variant if you are running a mock verifier (recommended if you aren't using a cuda accelerated prover).
+You should see the deploy address of the TTC contract printed to the console. There will be a json artifact written to `./deployments/<ttc-contract-address>/deployed.json`
+
+4. Run the demo script with the desired config options, e.g.
+
+```
+> TTC_ADDRESS=<ttc-contract-address> NUM_ACTORS=10 PROVER_TIMEOUT=600 make run-node-tests
+```
+
+You can control the log level via `RUST_LOG`. This script creates checkpoints, writing the relevant state to `./deployments/<ttc-contract-address>`. If the script errors or halts at any
+time, you can re-run from the last checkpoint using the same command as you used to start.
