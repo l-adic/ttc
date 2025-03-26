@@ -60,8 +60,8 @@ pub struct DemoConfig {
     #[arg(long, env = "MONITOR_PORT", default_value = "3030")]
     pub monitor_port: String,
 
-    #[arg(long, env = "MAX_ACTORS", default_value_t = 10)]
-    pub max_actors: usize,
+    #[arg(long, env = "NUM_ACTORS", default_value_t = 10)]
+    pub num_actors: usize,
 
     /// Initial ETH balance for new accounts
     #[arg(long, env = "INITIAL_BALANCE", default_value = "5")]

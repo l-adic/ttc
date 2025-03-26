@@ -121,7 +121,7 @@ jobs:
         make compile-ttc-contract
         make create-schema
         export TTC_ADDRESS=$(make deploy | tee /dev/tty | tail -n 1)
-        TTC_ADDRESS="$TTC_ADDRESS" MAX_ACTORS=3 PROVER_TIMEOUT=1200 make run-node-tests
+        TTC_ADDRESS="$TTC_ADDRESS" NUM_ACTORS=3 PROVER_TIMEOUT=1200 make run-node-tests
     
     # Get short git SHA for tagging
     - name: Get short SHA
