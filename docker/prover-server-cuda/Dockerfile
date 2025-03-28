@@ -63,4 +63,4 @@ COPY --from=builder /app/monitor/contract/ImageID.sol /app/monitor/contract/Imag
 COPY --from=builder /app/target/release/prover-server /app/target/release/
 
 # Set the binary as the entrypoint
-ENTRYPOINT ["/app/target/release/prover-server"]
+CMD ["/app/target/release/prover-server"]

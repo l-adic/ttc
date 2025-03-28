@@ -72,69 +72,15 @@ resource "google_compute_instance" "prover_server_gpu" {
   metadata = {
     ssh-keys = "${var.ssh_user}:${file(var.ssh_pub_key_path)}"
 
-    startup-script = "yes y | /opt/nvidia/gcp-ngc-login.sh true none false /var/log/nvidia 2> /dev/null"
-
-    user-data = <<EOF
-#cloud-config
-write_files:
-- path: /etc/systemd/system/prover.service
-  permissions: 0644
-  owner: root
-  content: |
-    [Unit]
-    Description=TTC Prover Server
-    After=docker.service
-    Requires=docker.service
-
-    [Service]
-    # Increase timeouts
-    TimeoutStartSec=600
-    TimeoutStopSec=6`:windows00
-    
-    Environment="RUST_LOG=${var.prover_rust_log_level}"
-    Environment="RISC0_DEV_MODE=${var.prover_risc0_dev_mode}"
-    Environment="DB_HOST=${google_sql_database_instance.ttc.private_ip_address}"
-    Environment="DB_USER=${var.database_username}"
-    Environment="DB_PASSWORD=${var.database_password}"
-    Environment="DB_NAME=${var.database_name}"
-    Environment="NODE_HOST=${google_compute_forwarding_rule.ethereum_node.ip_address}"
-    ExecStartPre=/usr/bin/docker pull ${var.prover_cuda_image_repository}:${var.docker_cuda_image_tag}
-    ExecStart=/bin/bash -c '\
-      /usr/bin/docker run --rm --rm --name prover-server \
-        --gpus all \
-        -p 3000:3000 \
-        -e RUST_LOG=$${RUST_LOG} \
-        -e RISC0_DEV_MODE=$${RISC0_DEV_MODE} \
-        -e DB_HOST=$${DB_HOST} \
-        -e DB_PORT=5432 \
-        -e DB_USER=$${DB_USER} \
-        -e DB_PASSWORD=$${DB_PASSWORD} \
-        -e DB_NAME=$${DB_NAME} \
-        -e NODE_HOST=$${NODE_HOST} \
-        -e NODE_PORT=8545 \
-        -e JSON_RPC_PORT=3000 \
-        -e NVIDIA_VISIBLE_DEVICES=all \
-        -e NVIDIA_DRIVER_CAPABILITIES=all \
-        -e RISC0_PROVER=local \
-        -e RUST_BACKTRACE=1 \
-        -e RISC0_WORK_DIR=/tmp/risc0-work-dir \
-        -e IMAGE_ID_CONTRACT=/app/monitor/contract/ImageID.sol \
-        -v /var/run/docker.sock:/var/run/docker.sock \
-        -v /tmp/risc0-work-dir:/tmp/risc0-work-dir \
-        --privileged \
-        ${var.prover_cuda_image_repository}:${var.docker_cuda_image_tag}'
-    ExecStop=/usr/bin/docker stop prover-server
-    Restart=always
-    RestartSec=5
-
-    [Install]
-    WantedBy=multi-user.target
-
-runcmd:
-  - systemctl daemon-reload
-  - systemctl enable prover.service
-  - systemctl start prover.service
-EOF
+    startup-script = templatefile("${path.module}/scripts/setup-prover.sh", {
+        rust_log_level = var.prover_rust_log_level
+        risc0_dev_mode = var.prover_risc0_dev_mode
+        db_host = google_sql_database_instance.ttc.private_ip_address
+        db_user = var.database_username
+        db_password = var.database_password
+        db_name = var.database_name
+        node_host = google_compute_forwarding_rule.ethereum_node.ip_address
+      })
   }
 
   service_account {
