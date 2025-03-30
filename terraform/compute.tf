@@ -44,7 +44,7 @@ resource "google_compute_instance" "prover_server_gpu" {
 
   boot_disk {
     initialize_params {
-      image = "projects/nvidia-ngc-public/global/images/nvidia-gpu-cloud-vmi-base-2024-10-1-x86-64"
+      image = "ubuntu-2204-jammy-v20250312"
       size  = 128  # GB
     }
   }
