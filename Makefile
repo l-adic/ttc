@@ -168,7 +168,7 @@ run-prover-server: ## Run the prover server
 	JSON_RPC_PORT=$(PROVER_PORT) \
 	RISC0_DEV_MODE=${RISC0_DEV_MODE} \
 	IMAGE_ID_CONTRACT=$(IMAGE_ID_CONTRACT) \
-	cargo run -p monitor-server --bin prover-server -F local_prover $(CARGO_BUILD_OPTIONS)
+	./target/release/prover-server
 
 run-monitor-server: build-monitor ## Run the monitor server
 	DB_HOST=$(DB_HOST) \
@@ -182,7 +182,7 @@ run-monitor-server: build-monitor ## Run the monitor server
 	PROVER_HOST=$(PROVER_HOST) \
 	PROVER_PORT=$(PROVER_PORT) \
 	JSON_RPC_PORT=$(MONITOR_PORT) \
-	cargo run -p monitor-server --bin monitor-server $(CARGO_BUILD_OPTIONS)
+	./target/release/monitor-server
 
 fetch-image-id-contract: ## Fetch the ImageID contract from the monitor server
 	@curl -f -s -XPOST -H "Content-Type: application/json" \

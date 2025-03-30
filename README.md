@@ -25,13 +25,17 @@ Two tmuxinator configurations are provided for development. Both configurations 
 #### 1. Local Development (`.tmuxinator.yml`)
 Run services locally with cargo:
 ```bash
-tmuxinator start -p .tmuxinator.yml
+make build-monitor
+make build-prover # Or make make build-prover-cuda for gpu
+RISC0_DEV_MODE={true/false} tmuxinator start -p .tmuxinator.yml
 ```
 
 #### 2. Docker Development (`.tmuxinator.docker.yml`)
+make build-monitor
+make build-prover # Or make make build-prover-cuda for gpu
 Run all services in Docker containers:
 ```bash
-tmuxinator start -p .tmuxinator.docker.yml
+RISC0_DEV_MODE={true/false} tmuxinator start -p .tmuxinator.docker.yml
 ```
 
 ## Testing

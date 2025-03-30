@@ -6,8 +6,6 @@ on_project_start:
   - sleep 5
   - make create-db
   - make create-schema
-  - make build-prover
-  - make build-monitor
 
 windows:
   - eth_pg_logs:
@@ -27,7 +25,6 @@ windows:
           NODE_HOST=localhost
           NODE_PORT=8545
           JSON_RPC_PORT=3000
-          RISC0_DEV_MODE=true
           RUST_LOG=debug
           make run-prover-server
         - >
